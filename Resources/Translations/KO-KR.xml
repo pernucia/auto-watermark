@@ -1,0 +1,39 @@
+<?xml version="1.0"?>
+<Language>
+  <Section name="Title">
+    <LabelText name="window_title">워터마크 생성기</LabelText>
+    <LabelText></LabelText>
+  </Section>
+  <Section name='Button'>
+    <LabelText name="select_image">이미지 등록</LabelText>
+    <LabelText name="remove_image">이미지 제거</LabelText>
+    <LabelText name="select_logo">로고 등록</LabelText>
+    <LabelText name="remove_logo">로고 제거</LabelText>
+  </Section>
+  <Section name="Label">
+    <LabelText name="img_input_guide">버튼을 클릭하거나\n이미지를 드래그/드랍 하여 이미지를 추가하세요</LabelText>
+    <LabelText name="logo_input_guide">로고 이미지</LabelText>
+    <LabelText name="detail_title">상세정보</LabelText>
+    <LabelText name="logo_title">로고\n이미지를 드래그 하거나 로고 등록 버튼을 클릭해 주세요</LabelText>
+    <LabelText name="table_title">기입할 내용</LabelText>
+    <LabelText name="preview_title">미리보기</LabelText>
+    <LabelText name="preview_img">미리보기</LabelText>
+  </Section>
+  <Section name="Table_Header">
+    <LabelText name="col1">항목</LabelText>
+    <LabelText name="col2">내용</LabelText>
+  </Section>
+  <Section name="Table_Content">
+    <LabelText name="tableitem1">작업자</LabelText>
+    <LabelText name="tableitem2">오너</LabelText>
+    <LabelText name="tableitem3">디자인</LabelText>
+    <LabelText name="tableitem4">(아이디 등)</LabelText>
+    <LabelText name="tableitem5">(아이디 등)</LabelText>
+    <LabelText name="tableitem6">(아이디 등)</LabelText>
+    <LabelText name="tableitem7">(작업자 아이디 등)</LabelText>
+    <LabelText name="tableitem8">All right reserved</LabelText>
+  </Section>
+  <Section name="">
+    <LabelText name=""></LabelText>
+  </Section>
+</Language>
