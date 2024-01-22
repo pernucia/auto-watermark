@@ -3,7 +3,7 @@ from typing import Optional
 from PySide6.QtCore import Qt, QMimeData
 from PySide6.QtWidgets import QMainWindow, QApplication
 from PySide6.QtWidgets import QWidget, QHBoxLayout, QVBoxLayout, QLayout, QSizePolicy, QGridLayout, QSpacerItem
-from PySide6.QtWidgets import QFrame, QLabel, QPushButton, QFileDialog, QTableWidget
+from PySide6.QtWidgets import QFrame, QLabel, QPushButton, QFileDialog, QTableWidget, QRadioButton, QCheckBox
 from PySide6.QtWidgets import QTableWidgetItem, QHeaderView
 from PySide6.QtGui import QDragEnterEvent, QDropEvent, QIcon, QMouseEvent, QPixmap, QScreen, QDrag, QColor
 
@@ -73,10 +73,10 @@ class MainWindow(QMainWindow):
 		imgGrid.addWidget(self.imgFrame)
 
 		# 우측 상세정보
-		detailGrid = QVBoxLayout()
-		mainGrid.addLayout(detailGrid)
+		detailLayout = QVBoxLayout()
+		mainGrid.addLayout(detailLayout)
 
-		detailGrid.addWidget(QLabel(self.get_label("detail_title")))
+		detailLayout.addWidget(QLabel(self.get_label("detail_title")))
 		# 로고 지정 영역
 		self.logoFrame = LogoFrame(self)
 		self.logoLabel = QLabel(self.get_label("logo_title"))
@@ -99,15 +99,56 @@ class MainWindow(QMainWindow):
 				self.inputTextTable.setItem(i, 0, QTableWidgetItem(text))
 			else:
 				self.inputTextTable.setItem(i-4, 1, QTableWidgetItem(text))
+		self.inputTextTable.cellChanged.connect(self.show_logo_preview)
 		# 미리보기
 		self.watermarkTitle = QLabel(self.get_label('preview_title'))
 		self.watermarkPreview = QLabel(self.get_label('preview_img'))
 		self.watermarkPreview.setFixedSize(200, 100)
 		self.watermarkPreview.setFrameShape(QFrame.Box)
+		
+		# 우측 상세설정
+		self.midLine = VLine()
+		# 텍스트 위치
+		self.textLocalLabel = QLabel(self.get_label('local_title'))
+		self.textLocalWidget = QWidget()
+		localLayout = QHBoxLayout(self.textLocalWidget)
+		self.textLocalDown = QRadioButton(self.get_label('text_local_down'))
+		self.textLocalDown.setChecked(True)
+		self.textLocalDown.clicked.connect(self.show_logo_preview)
+		self.textLocalLeft = QRadioButton(self.get_label('text_local_left'))
+		self.textLocalLeft.clicked.connect(self.show_logo_preview)
+		self.textLocalRight = QRadioButton(self.get_label('text_local_right'))
+		self.textLocalRight.clicked.connect(self.show_logo_preview)
+		self.textLocalNone = QRadioButton(self.get_label('text_local_none'))
+		self.textLocalNone.clicked.connect(self.show_logo_preview)
+		localLayout.addWidget(self.textLocalDown)
+		localLayout.addWidget(self.textLocalLeft)
+		localLayout.addWidget(self.textLocalRight)
+		localLayout.addWidget(self.textLocalNone)
+		# 배열 방식
+		self.textAlignLabel =  QLabel(self.get_label('align_title'))
+		self.textAlignWidget = QWidget()
+		alignLayout = QGridLayout(self.textAlignWidget)
+		self.textAlignOneCol = QRadioButton(self.get_label('align_one_column'))
+		self.textAlignOneCol.setToolTip(self.get_label('align_one_column'))
+		self.textAlignOneCol.setChecked(True)
+		
+		self.textAlignTwoCol = QRadioButton(self.get_label('align_two_column'))
+		self.textAlignTwoCol.setToolTip(self.get_label('align_two_column'))
+		
+		self.textAlignThreeCol = QRadioButton(self.get_label('align_three_column'))
+		self.textAlignThreeCol.setToolTip(self.get_label('align_three_column'))
+
+		alignLayout.addWidget(self.textAlignOneCol, 0, 0)
+		alignLayout.addWidget(self.textAlignTwoCol, 0, 1)
+		alignLayout.addWidget(self.textAlignThreeCol, 0, 2)
+		# 배치(위치, 방식)
+		# 회전
 
 
-		logoGrid = QGridLayout()
 		# 좌측
+		# 1~4
+		logoGrid = QGridLayout()
 		logoGrid.addWidget(self.logoFrame, 0, 0, 2, 1)
 		logoGrid.addWidget(self.logoLabel, 0, 1, 1, 3)
 		logoGrid.addWidget(self.logoAddBtn, 1, 1)
@@ -118,16 +159,31 @@ class MainWindow(QMainWindow):
 		logoGrid.addWidget(HLine(), 5, 0, 1, 4)
 		logoGrid.addWidget(self.watermarkTitle, 6, 0)
 		logoGrid.addWidget(self.watermarkPreview, 7, 0, 2, 2)
-		# logoGrid.addWidget(VLine(), 0, 5, 10, 1)
-		# 우측
 		logoGrid.addItem(QSpacerItem(20,20,QSizePolicy.Policy.Preferred,QSizePolicy.Policy.Expanding), 9, 0)
+
+		# detailGrid.addWidget(self.midLine, 0, 5, 10, 1)
+		# 우측
+		# 6~
+		detailGrid = QGridLayout()
+		detailGrid.addWidget(self.textLocalLabel, 0, 0)
+		detailGrid.addWidget(self.textLocalWidget, 0, 1)
+		detailGrid.addWidget(HLine(), 1, 0, 1, 2)
+		detailGrid.addWidget(self.textAlignLabel, 2, 0)
+		detailGrid.addWidget(self.textAlignWidget, 3, 0, 1, 2)
+		detailGrid.addWidget(HLine(), 4, 0, 1, 2)
 		
+		mainLayout = QHBoxLayout()
+		mainLayout.addLayout(logoGrid)
+		mainLayout.addWidget(self.midLine)
+		mainLayout.addLayout(detailGrid)
+
 		detailFrame = QFrame()
 		detailFrame.setFrameShape(QFrame.Box)
-		detailFrame.setLayout(logoGrid)
-		detailGrid.addWidget(detailFrame)
+		detailFrame.setLayout(mainLayout)
+		detailLayout.addWidget(detailFrame)
 		
-		
+		self.show_logo_preview()
+		self.show_detail_setting(True)
 		
 
 
@@ -135,6 +191,10 @@ class MainWindow(QMainWindow):
 		cwidget.setLayout(mainGrid)
 
 		return cwidget
+	
+
+	# 로고 미리보기 갱신
+	def show_logo_preview(self):...
 	
 	# 이미지 추가 버튼
 	def select_img(self):
@@ -169,13 +229,27 @@ class MainWindow(QMainWindow):
 			filename = file_selector.selectedFiles()[0]
 			print(filename)
 			self.logoFrame.set_image(filename)
+		
+		self.show_logo_preview()
 
 	# 로고 제거 버튼
 	def remove_logo(self):
 		self.logoFrame.clear()
 		self.logoFrame.setText(self.get_label('logo_input_guide'))
 		self.logoFrame.setToolTip('')
-			
+		
+		self.show_logo_preview()
+
+	def show_detail_setting(self, state:bool=False):
+		if state:
+			self.midLine.show()
+			self.textLocalLabel.show()
+			self.textLocalWidget.show()
+		else:
+			self.midLine.hide()
+			self.textLocalLabel.hide()
+			self.textLocalWidget.hide()
+
 	
 # 이미지 표시
 class ImageFrame(QLabel):
