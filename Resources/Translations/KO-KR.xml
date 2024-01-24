@@ -9,26 +9,31 @@
     <LabelText name="remove_image">이미지 제거</LabelText>
     <LabelText name="select_logo">로고 등록</LabelText>
     <LabelText name="remove_logo">로고 제거</LabelText>
+    <LabelText name="detail_open">상세설정 &gt;&gt;</LabelText>
+    <LabelText name="detail_close">상세설정 &lt;&lt;</LabelText>
     <LabelText name="text_local_down">하단</LabelText>
     <LabelText name="text_local_left">좌</LabelText>
     <LabelText name="text_local_right">우</LabelText>
     <LabelText name="text_local_none">무시</LabelText>
   </Section>
   <Section name="Button_Tooltip">
+    <LabelText name="detail_open_tooltip">상세설정 보기</LabelText>
+    <LabelText name="detail_close_tooltip">상세설정 감추기</LabelText>
     <LabelText name="align_one_column">1열</LabelText>
     <LabelText name="align_two_column">2열</LabelText>
     <LabelText name="align_three_column">3열</LabelText>
   </Section>
   <Section name="Label">
-    <LabelText name="img_input_guide">버튼을 클릭하거나\n이미지를 드래그/드랍 하여 이미지를 추가하세요</LabelText>
+    <LabelText name="img_input_guide">버튼을 클릭하거나<br/>이미지를 드래그/드랍 하여 이미지를 추가하세요</LabelText>
     <LabelText name="logo_input_guide">로고 이미지</LabelText>
     <LabelText name="detail_title">상세정보</LabelText>
-    <LabelText name="logo_title">로고\n이미지를 드래그 하거나 로고 등록 버튼을 클릭해 주세요</LabelText>
+    <LabelText name="logo_title">로고<br/>이미지를 드래그 하거나 로고 등록 버튼을 클릭해 주세요</LabelText>
     <LabelText name="table_title">기입할 내용</LabelText>
     <LabelText name="preview_title">미리보기</LabelText>
     <LabelText name="preview_img">미리보기</LabelText>
     <LabelText name="local_title">텍스트 위치</LabelText>
     <LabelText name="align_title">텍스트 배열</LabelText>
+    <LabelText name="position_title">워터마크 배치</LabelText>
   </Section>
   <Section name="Table_Header">
     <LabelText name="col1">항목</LabelText>

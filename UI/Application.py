@@ -23,7 +23,7 @@ class MainWindow(QMainWindow):
 	def get_label(self, name):
 		element = self.lang.find(f".//LabelText[@name='{name}']")
 		try:
-			return element.text.replace('\\n','\n')
+			return element.text
 		except:
 			return ''
 	
@@ -105,6 +105,9 @@ class MainWindow(QMainWindow):
 		self.watermarkPreview = QLabel(self.get_label('preview_img'))
 		self.watermarkPreview.setFixedSize(200, 100)
 		self.watermarkPreview.setFrameShape(QFrame.Box)
+		self.toggleDetailBtn = QPushButton(self.get_label('detail_open'))
+		self.toggleDetailBtn.setToolTip(self.get_label('detail_open_tooltip'))
+		self.toggleDetailBtn.clicked.connect(self.toggle_detail)
 		
 		# 우측 상세설정
 		self.midLine = VLine()
@@ -129,6 +132,7 @@ class MainWindow(QMainWindow):
 		self.textAlignLabel =  QLabel(self.get_label('align_title'))
 		self.textAlignWidget = QWidget()
 		alignLayout = QGridLayout(self.textAlignWidget)
+		alignLayout.setContentsMargins(1,1,1,2)
 		self.textAlignOneCol = QRadioButton(self.get_label('align_one_column'))
 		self.textAlignOneCol.setToolTip(self.get_label('align_one_column'))
 		self.textAlignOneCol.setChecked(True)
@@ -143,6 +147,9 @@ class MainWindow(QMainWindow):
 		alignLayout.addWidget(self.textAlignTwoCol, 0, 1)
 		alignLayout.addWidget(self.textAlignThreeCol, 0, 2)
 		# 배치(위치, 방식)
+		self.textPosLabel = QLabel(self.get_label('align_title'))
+
+
 		# 회전
 
 
@@ -157,7 +164,8 @@ class MainWindow(QMainWindow):
 		logoGrid.addWidget(self.inputTextLabel, 3, 0)
 		logoGrid.addWidget(self.inputTextTable, 4, 0, 1, 4)
 		logoGrid.addWidget(HLine(), 5, 0, 1, 4)
-		logoGrid.addWidget(self.watermarkTitle, 6, 0)
+		logoGrid.addWidget(self.watermarkTitle, 6, 0, 1, 3)
+		logoGrid.addWidget(self.toggleDetailBtn, 6, 4)
 		logoGrid.addWidget(self.watermarkPreview, 7, 0, 2, 2)
 		logoGrid.addItem(QSpacerItem(20,20,QSizePolicy.Policy.Preferred,QSizePolicy.Policy.Expanding), 9, 0)
 
@@ -171,6 +179,7 @@ class MainWindow(QMainWindow):
 		detailGrid.addWidget(self.textAlignLabel, 2, 0)
 		detailGrid.addWidget(self.textAlignWidget, 3, 0, 1, 2)
 		detailGrid.addWidget(HLine(), 4, 0, 1, 2)
+		detailGrid.addItem(QSpacerItem(20,20,QSizePolicy.Policy.Preferred,QSizePolicy.Policy.Expanding), 9, 0)
 		
 		mainLayout = QHBoxLayout()
 		mainLayout.addLayout(logoGrid)
@@ -183,7 +192,6 @@ class MainWindow(QMainWindow):
 		detailLayout.addWidget(detailFrame)
 		
 		self.show_logo_preview()
-		self.show_detail_setting(True)
 		
 
 
@@ -240,15 +248,19 @@ class MainWindow(QMainWindow):
 		
 		self.show_logo_preview()
 
-	def show_detail_setting(self, state:bool=False):
-		if state:
+	def toggle_detail(self):
+		if self.toggleDetailBtn.text() == self.get_label('detail_open'):
 			self.midLine.show()
 			self.textLocalLabel.show()
 			self.textLocalWidget.show()
+			self.toggleDetailBtn.setText(self.get_label('detail_close'))
+			self.toggleDetailBtn.setToolTip(self.get_label('detail_close_tooltip'))
 		else:
 			self.midLine.hide()
 			self.textLocalLabel.hide()
 			self.textLocalWidget.hide()
+			self.toggleDetailBtn.setText(self.get_label('detail_open'))
+			self.toggleDetailBtn.setToolTip(self.get_label('detail_open_tooltip'))
 
 	
 # 이미지 표시
