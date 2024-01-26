@@ -52,6 +52,7 @@ class MainWindow(QMainWindow):
 
 	# 메인 위젯 생성
 	def cwidget_init(self):
+		self.setBaseSize(900, 500)
 		cwidget = QWidget()
 
 		mainGrid = QHBoxLayout()
@@ -147,15 +148,19 @@ class MainWindow(QMainWindow):
 		alignLayout.addWidget(self.textAlignTwoCol, 0, 1)
 		alignLayout.addWidget(self.textAlignThreeCol, 0, 2)
 		# 배치(위치, 방식)
-		self.textPosLabel = QLabel(self.get_label('align_title'))
+		self.textPosLabel = QLabel(self.get_label('position_title'))
 
 
 		# 회전
 
+		self.hLine1 = HLine()
+		self.hLine2 = HLine()
+		self.hLine3 = HLine()
 
 		# 좌측
 		# 1~4
 		logoGrid = QGridLayout()
+		logoGrid.setContentsMargins(0,0,0,0)
 		logoGrid.addWidget(self.logoFrame, 0, 0, 2, 1)
 		logoGrid.addWidget(self.logoLabel, 0, 1, 1, 3)
 		logoGrid.addWidget(self.logoAddBtn, 1, 1)
@@ -165,7 +170,7 @@ class MainWindow(QMainWindow):
 		logoGrid.addWidget(self.inputTextTable, 4, 0, 1, 4)
 		logoGrid.addWidget(HLine(), 5, 0, 1, 4)
 		logoGrid.addWidget(self.watermarkTitle, 6, 0, 1, 3)
-		logoGrid.addWidget(self.toggleDetailBtn, 6, 4)
+		logoGrid.addWidget(self.toggleDetailBtn, 6, 3)
 		logoGrid.addWidget(self.watermarkPreview, 7, 0, 2, 2)
 		logoGrid.addItem(QSpacerItem(20,20,QSizePolicy.Policy.Preferred,QSizePolicy.Policy.Expanding), 9, 0)
 
@@ -173,18 +178,31 @@ class MainWindow(QMainWindow):
 		# 우측
 		# 6~
 		detailGrid = QGridLayout()
+		detailGrid.setContentsMargins(0,0,0,0)
 		detailGrid.addWidget(self.textLocalLabel, 0, 0)
 		detailGrid.addWidget(self.textLocalWidget, 0, 1)
-		detailGrid.addWidget(HLine(), 1, 0, 1, 2)
+		detailGrid.addWidget(self.hLine1, 1, 0, 1, 2)
 		detailGrid.addWidget(self.textAlignLabel, 2, 0)
 		detailGrid.addWidget(self.textAlignWidget, 3, 0, 1, 2)
-		detailGrid.addWidget(HLine(), 4, 0, 1, 2)
+		detailGrid.addWidget(self.hLine2, 4, 0, 1, 2)
+		detailGrid.addWidget(self.textPosLabel, 5, 0)
 		detailGrid.addItem(QSpacerItem(20,20,QSizePolicy.Policy.Preferred,QSizePolicy.Policy.Expanding), 9, 0)
 		
+
+		self.leftWidget = QWidget()
+		self.leftWidget.setFixedWidth(390)
+		self.leftWidget.setLayout(logoGrid)
+		self.rightWidget = QWidget()
+		self.rightWidget.setFixedWidth(390)
+		self.rightWidget.setLayout(detailGrid)
+		
+		self.rightWidget.hide()
+		self.midLine.hide()
+
 		mainLayout = QHBoxLayout()
-		mainLayout.addLayout(logoGrid)
+		mainLayout.addWidget(self.leftWidget)
 		mainLayout.addWidget(self.midLine)
-		mainLayout.addLayout(detailGrid)
+		mainLayout.addWidget(self.rightWidget)
 
 		detailFrame = QFrame()
 		detailFrame.setFrameShape(QFrame.Box)
@@ -250,15 +268,15 @@ class MainWindow(QMainWindow):
 
 	def toggle_detail(self):
 		if self.toggleDetailBtn.text() == self.get_label('detail_open'):
+			self.setMaximumSize(1300, 500)
 			self.midLine.show()
-			self.textLocalLabel.show()
-			self.textLocalWidget.show()
+			self.rightWidget.show()
 			self.toggleDetailBtn.setText(self.get_label('detail_close'))
 			self.toggleDetailBtn.setToolTip(self.get_label('detail_close_tooltip'))
 		else:
+			self.setMaximumSize(900, 500)
 			self.midLine.hide()
-			self.textLocalLabel.hide()
-			self.textLocalWidget.hide()
+			self.rightWidget.hide()
 			self.toggleDetailBtn.setText(self.get_label('detail_open'))
 			self.toggleDetailBtn.setToolTip(self.get_label('detail_open_tooltip'))
 
