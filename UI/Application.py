@@ -3,7 +3,7 @@ from typing import Optional
 from PySide6.QtCore import Qt, QMimeData
 from PySide6.QtWidgets import QMainWindow, QApplication
 from PySide6.QtWidgets import QWidget, QHBoxLayout, QVBoxLayout, QLayout, QSizePolicy, QGridLayout, QSpacerItem
-from PySide6.QtWidgets import QFrame, QLabel, QPushButton, QFileDialog, QTableWidget, QRadioButton, QCheckBox
+from PySide6.QtWidgets import QFrame, QLabel, QPushButton, QFileDialog, QTableWidget, QRadioButton, QCheckBox, QLineEdit, QComboBox, QSpinBox, QSlider
 from PySide6.QtWidgets import QTableWidgetItem, QHeaderView
 from PySide6.QtGui import QDragEnterEvent, QDropEvent, QIcon, QMouseEvent, QPixmap, QScreen, QDrag, QColor
 
@@ -33,7 +33,7 @@ class MainWindow(QMainWindow):
 
 		self.setWindowTitle(f'{self.get_label("window_title")} V{self.__version}')
 		# self.setWindowIcon(QIcon(resource_path('img')))
-		self.setBaseSize(600,500)
+		self.setFixedSize(895, 500)
 		self.setAcceptDrops(True)
 
 		self.setFocusPolicy(Qt.FocusPolicy.ClickFocus)
@@ -52,7 +52,6 @@ class MainWindow(QMainWindow):
 
 	# 메인 위젯 생성
 	def cwidget_init(self):
-		self.setBaseSize(900, 500)
 		cwidget = QWidget()
 
 		mainGrid = QHBoxLayout()
@@ -93,6 +92,7 @@ class MainWindow(QMainWindow):
 		self.inputTextTable.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
 		self.inputTextTable.horizontalHeader().setSectionsClickable(False)
 		self.inputTextTable.verticalHeader().hide()
+		self.inputTextTable.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
 		self.inputTextTable.setMaximumHeight(150)
 		for i in range(8):
 			text = self.get_label(f"tableitem{i+1}")
@@ -109,6 +109,13 @@ class MainWindow(QMainWindow):
 		self.toggleDetailBtn = QPushButton(self.get_label('detail_open'))
 		self.toggleDetailBtn.setToolTip(self.get_label('detail_open_tooltip'))
 		self.toggleDetailBtn.clicked.connect(self.toggle_detail)
+
+		self.gen_previewBtn = QPushButton(self.get_label('generate_preview'))
+		self.gen_previewBtn.clicked.connect(self.generate_preview)
+
+		self.saveBtn = QPushButton(self.get_label('save'))
+		self.saveBtn.clicked.connect(self.save_img)
+
 		
 		# 우측 상세설정
 		self.midLine = VLine()
@@ -137,30 +144,128 @@ class MainWindow(QMainWindow):
 		self.textAlignOneCol = QRadioButton(self.get_label('align_one_column'))
 		self.textAlignOneCol.setToolTip(self.get_label('align_one_column'))
 		self.textAlignOneCol.setChecked(True)
+		self.textAlignOneCol.toggled.connect(self.show_logo_preview)
 		
 		self.textAlignTwoCol = QRadioButton(self.get_label('align_two_column'))
 		self.textAlignTwoCol.setToolTip(self.get_label('align_two_column'))
+		self.textAlignTwoCol.toggled.connect(self.show_logo_preview)
 		
 		self.textAlignThreeCol = QRadioButton(self.get_label('align_three_column'))
 		self.textAlignThreeCol.setToolTip(self.get_label('align_three_column'))
+		self.textAlignThreeCol.toggled.connect(self.show_logo_preview)
 
 		alignLayout.addWidget(self.textAlignOneCol, 0, 0)
 		alignLayout.addWidget(self.textAlignTwoCol, 0, 1)
 		alignLayout.addWidget(self.textAlignThreeCol, 0, 2)
-		# 배치(위치, 방식)
+		# 워터마크 위치
 		self.textPosLabel = QLabel(self.get_label('position_title'))
+		self.textPosWidget = QWidget()
+		textposLayout = QGridLayout()
+		textposLayout.setContentsMargins(1,1,1,10)
+		textposLayout.setSpacing(5)
+		textposLayout.setColumnMinimumWidth(0, 120)
+		textposLayout.setColumnMinimumWidth(1, 120)
+		textposLayout.setColumnMinimumWidth(2, 120)
+		self.textPosWidget.setLayout(textposLayout)
 
+		self.textPos_Center = QRadioButton(self.get_label('pos_center'))
+		self.textPos_Center.setChecked(True)
+		# self.textPos_Center.toggled.connect(self.show_logo_preview)
+		self.textPos_Custom = QRadioButton(self.get_label('pos_custom'))
+		# self.textPos_Custom.toggled.connect(self.show_logo_preview)
+		self.textPosCustomX = QSpinBox()
+		self.textPosCustomX.setRange(0, 100)
+		self.textPosCustomX.setToolTip(self.get_label('pos_x'))
+		self.textPosCustomX.setEnabled(False)
+		# self.textPosCustomX.valueChanged.connect(self.show_logo_preview)
+
+		self.textPosCustomY = QSpinBox()
+		self.textPosCustomY.setRange(0, 100)
+		self.textPosCustomY.setToolTip(self.get_label('pos_y'))
+		self.textPosCustomY.setEnabled(False)
+		# self.textPosCustomY.valueChanged.connect(self.show_logo_preview)
+
+		self.textPosCustomType = QComboBox()
+		self.textPosCustomType.addItems(['Pixel','%'])
+		self.textPosCustomType.setEnabled(False)
+		# self.textPosCustomType.currentTextChanged.connect(self.show_logo_preview)
+
+		self.textPos_Top = QRadioButton(self.get_label('pos_top'))
+		# self.textPos_Top.toggled.connect(self.show_logo_preview)
+		self.textPos_Bottom = QRadioButton(self.get_label('pos_bottom'))
+		# self.textPos_Bottom.toggled.connect(self.show_logo_preview)
+		self.textPos_Left = QRadioButton(self.get_label('pos_left'))
+		# self.textPos_Left.toggled.connect(self.show_logo_preview)
+		self.textPos_Right = QRadioButton(self.get_label('pos_right'))
+		# self.textPos_Right.toggled.connect(self.show_logo_preview)
+
+		self.textPos_TopLeft = QRadioButton(self.get_label('pos_topleft'))
+		# self.textPos_TopLeft.toggled.connect(self.show_logo_preview)
+		self.textPos_TopRight = QRadioButton(self.get_label('pos_topright'))
+		# self.textPos_TopRight.toggled.connect(self.show_logo_preview)
+		self.textPos_BottomLeft = QRadioButton(self.get_label('pos_bottomleft'))
+		# self.textPos_BottomLeft.toggled.connect(self.show_logo_preview)
+		self.textPos_BottomRight = QRadioButton(self.get_label('pos_bottomright'))
+		# self.textPos_BottomRight.toggled.connect(self.show_logo_preview)
+		
+		textposLayout.addWidget(self.textPos_TopLeft, 0, 0)
+		textposLayout.addWidget(self.textPos_Top, 0, 1)
+		textposLayout.addWidget(self.textPos_TopRight, 0, 2)
+		textposLayout.addWidget(self.textPos_Left, 1, 0)
+		textposLayout.addWidget(self.textPos_Center, 1, 1)
+		textposLayout.addWidget(self.textPos_Right, 1, 2)
+		textposLayout.addWidget(self.textPos_BottomLeft, 2, 0)
+		textposLayout.addWidget(self.textPos_Bottom, 2, 1)
+		textposLayout.addWidget(self.textPos_BottomRight, 2, 2)
+		textposLayout.addWidget(self.textPos_Custom, 3, 0, 1, 3)
+		textposLayout.addWidget(self.textPosCustomX, 4, 0)
+		textposLayout.addWidget(self.textPosCustomY, 4, 1)
+		textposLayout.addWidget(self.textPosCustomType, 4, 2)
+
+		self.textPos_Custom.toggled.connect(self.toggle_textpos)
 
 		# 회전
+		self.textOrientTitle = QLabel(self.get_label('orient_title'))
+		self.textOrientLine = QLineEdit()
+		self.textOrientLine.setFixedWidth(50)
+		self.textOrientLine.setText('0')
+		self.textOrientLine.textChanged.connect(self.input_orient_value)
+		# self.textOrientLine.textChanged.connect(self.show_logo_preview)
+		self.textOrientSlider = QSlider()
+		self.textOrientSlider.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+		self.textOrientSlider.setLayoutDirection(Qt.LayoutDirection.LeftToRight)
+		self.textOrientSlider.setTickPosition(QSlider.TickPosition.TicksAbove)
+		self.textOrientSlider.setRange(0,360)
+		self.textOrientSlider.setTickInterval(45)
+		self.textOrientSlider.setSingleStep(15)
+		self.textOrientSlider.setPageStep(90)
+		self.textOrientSlider.setOrientation(Qt.Orientation.Horizontal)
+		self.textOrientSlider.valueChanged.connect(self.set_orient_value)
+		# self.textOrientSlider.valueChanged.connect(self.show_logo_preview)
 
-		self.hLine1 = HLine()
-		self.hLine2 = HLine()
-		self.hLine3 = HLine()
+
+		# 방식(단일, 바둑판)
+		self.textTypeTitle = QLabel(self.get_label('type_title'))
+		self.textTypeWidget = QWidget()
+		typeLayout = QHBoxLayout()
+		typeLayout.setContentsMargins(0,1,0,10)
+		self.textTypeWidget.setLayout(typeLayout)
+
+		self.textType_Single = QRadioButton(self.get_label('type_single'))
+		self.textType_Single.setChecked(True)
+		self.textType_Expand = QRadioButton(self.get_label('type_expand'))
+		self.textType_Checkbox = QRadioButton(self.get_label('type_checkbox'))
+
+		typeLayout.addWidget(self.textType_Single)
+		typeLayout.addWidget(self.textType_Expand)
+		typeLayout.addWidget(self.textType_Checkbox)
+
 
 		# 좌측
 		# 1~4
 		logoGrid = QGridLayout()
 		logoGrid.setContentsMargins(0,0,0,0)
+		logoGrid.setSpacing(5)
 		logoGrid.addWidget(self.logoFrame, 0, 0, 2, 1)
 		logoGrid.addWidget(self.logoLabel, 0, 1, 1, 3)
 		logoGrid.addWidget(self.logoAddBtn, 1, 1)
@@ -172,6 +277,8 @@ class MainWindow(QMainWindow):
 		logoGrid.addWidget(self.watermarkTitle, 6, 0, 1, 3)
 		logoGrid.addWidget(self.toggleDetailBtn, 6, 3)
 		logoGrid.addWidget(self.watermarkPreview, 7, 0, 2, 2)
+		logoGrid.addWidget(self.gen_previewBtn, 7, 3)
+		logoGrid.addWidget(self.saveBtn, 8, 3)
 		logoGrid.addItem(QSpacerItem(20,20,QSizePolicy.Policy.Preferred,QSizePolicy.Policy.Expanding), 9, 0)
 
 		# detailGrid.addWidget(self.midLine, 0, 5, 10, 1)
@@ -179,18 +286,27 @@ class MainWindow(QMainWindow):
 		# 6~
 		detailGrid = QGridLayout()
 		detailGrid.setContentsMargins(0,0,0,0)
+		detailGrid.setSpacing(5)
 		detailGrid.addWidget(self.textLocalLabel, 0, 0)
-		detailGrid.addWidget(self.textLocalWidget, 0, 1)
-		detailGrid.addWidget(self.hLine1, 1, 0, 1, 2)
+		detailGrid.addWidget(self.textLocalWidget, 0, 1, 1, 3)
+		detailGrid.addWidget(HLine(), 1, 0, 1, 4)
 		detailGrid.addWidget(self.textAlignLabel, 2, 0)
-		detailGrid.addWidget(self.textAlignWidget, 3, 0, 1, 2)
-		detailGrid.addWidget(self.hLine2, 4, 0, 1, 2)
+		detailGrid.addWidget(self.textAlignWidget, 3, 0, 1, 4)
+		detailGrid.addWidget(HLine(), 4, 0, 1, 4)
 		detailGrid.addWidget(self.textPosLabel, 5, 0)
-		detailGrid.addItem(QSpacerItem(20,20,QSizePolicy.Policy.Preferred,QSizePolicy.Policy.Expanding), 9, 0)
+		detailGrid.addWidget(self.textPosWidget, 6, 0, 2, 4)
+		detailGrid.addWidget(HLine(), 7, 0, 1, 4)
+		detailGrid.addWidget(self.textOrientTitle, 8, 0)
+		detailGrid.addWidget(self.textOrientSlider, 9, 0, 1, 3)
+		detailGrid.addWidget(self.textOrientLine, 9, 3)
+		detailGrid.addWidget(HLine(), 10, 0, 1, 4)
+		detailGrid.addWidget(self.textTypeTitle, 11, 0)
+		detailGrid.addWidget(self.textTypeWidget, 12, 0, 1, 4)
+		# detailGrid.addItem(QSpacerItem(20,20,QSizePolicy.Policy.Preferred,QSizePolicy.Policy.Expanding), 20, 0)
 		
 
 		self.leftWidget = QWidget()
-		self.leftWidget.setFixedWidth(390)
+		self.leftWidget.setFixedWidth(400)
 		self.leftWidget.setLayout(logoGrid)
 		self.rightWidget = QWidget()
 		self.rightWidget.setFixedWidth(390)
@@ -200,6 +316,7 @@ class MainWindow(QMainWindow):
 		self.midLine.hide()
 
 		mainLayout = QHBoxLayout()
+		mainLayout.setAlignment(Qt.AlignmentFlag.AlignLeft)
 		mainLayout.addWidget(self.leftWidget)
 		mainLayout.addWidget(self.midLine)
 		mainLayout.addWidget(self.rightWidget)
@@ -218,10 +335,32 @@ class MainWindow(QMainWindow):
 
 		return cwidget
 	
+	############################################################
+	######              Element Actions                   ######
+	############################################################
 
-	# 로고 미리보기 갱신
-	def show_logo_preview(self):...
+	# 워터마크 위치 직접입력
+	def toggle_textpos(self):
+		if self.textPos_Custom.isChecked():
+			self.textPosCustomX.setEnabled(True)
+			self.textPosCustomY.setEnabled(True)
+			self.textPosCustomType.setEnabled(True)
+		else:
+			self.textPosCustomX.setEnabled(False)
+			self.textPosCustomY.setEnabled(False)
+			self.textPosCustomType.setEnabled(False)
+
+	# 회전 슬라이더 값
+	def set_orient_value(self):
+		self.textOrientLine.setText(str(self.textOrientSlider.value()))
+	def input_orient_value(self):
+		self.textOrientSlider.setValue(int(self.textOrientLine.text()))
+
 	
+	############################################################
+	######              Button Actions                    ######
+	############################################################
+		
 	# 이미지 추가 버튼
 	def select_img(self):
 		file_selector = QFileDialog(self, caption="이미지 선택", directory=os.getcwd())
@@ -266,21 +405,34 @@ class MainWindow(QMainWindow):
 		
 		self.show_logo_preview()
 
+	# 상세설정 표시 버튼
 	def toggle_detail(self):
 		if self.toggleDetailBtn.text() == self.get_label('detail_open'):
-			self.setMaximumSize(1300, 500)
 			self.midLine.show()
 			self.rightWidget.show()
+			self.setFixedSize(1300, 500)
 			self.toggleDetailBtn.setText(self.get_label('detail_close'))
 			self.toggleDetailBtn.setToolTip(self.get_label('detail_close_tooltip'))
 		else:
-			self.setMaximumSize(900, 500)
 			self.midLine.hide()
 			self.rightWidget.hide()
+			self.setFixedSize(895, 500)
 			self.toggleDetailBtn.setText(self.get_label('detail_open'))
 			self.toggleDetailBtn.setToolTip(self.get_label('detail_open_tooltip'))
 
-	
+
+	# 로고 미리보기 갱신
+	def show_logo_preview(self):
+		# self.
+		pass
+
+	def generate_preview(self):...
+
+
+	def save_img(self):...
+
+
+
 # 이미지 표시
 class ImageFrame(QLabel):
 	def __init__(self, parent: QWidget=None) -> None:
@@ -329,7 +481,7 @@ class LogoFrame(QLabel):
 		super().__init__(parent)
 		self.setFixedSize(100,100)
 		self.setAcceptDrops(True)
-		self.setStyleSheet('QLabel{border: 4px dashed #aaa};')
+		self.setStyleSheet('QLabel{border: 2px dashed #aaa};')
 		self.setText(self.parent().get_label('logo_input_guide'))
 
 		# 이미지 들어갈 라벨
