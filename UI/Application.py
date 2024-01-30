@@ -1,47 +1,87 @@
-import os, shutil, sys
-from typing import Optional
-from PySide6.QtCore import Qt, QMimeData
+import os, shutil, sys, ctypes, locale
+from PySide6.QtCore import Qt, QMimeData, Signal, QRunnable, QObject
 from PySide6.QtWidgets import QMainWindow, QApplication
 from PySide6.QtWidgets import QWidget, QHBoxLayout, QVBoxLayout, QLayout, QSizePolicy, QGridLayout, QSpacerItem
-from PySide6.QtWidgets import QFrame, QLabel, QPushButton, QFileDialog, QTableWidget, QRadioButton, QCheckBox, QLineEdit, QComboBox, QSpinBox, QSlider
+from PySide6.QtWidgets import QFrame, QLabel, QPushButton, QFileDialog, QTableWidget, QRadioButton, QCheckBox, QLineEdit, QComboBox, QSpinBox, QSlider, QProgressBar
 from PySide6.QtWidgets import QTableWidgetItem, QHeaderView
 from PySide6.QtGui import QDragEnterEvent, QDropEvent, QIcon, QMouseEvent, QPixmap, QScreen, QDrag, QColor
+from time import sleep
 
-from Resources.Addons import resource_path, get_language_pack
+from Resources.Addons import read_xml, save_xml, resource_path, get_language_pack, LOGO_PATH, PREVIEW_PATH, PREVIEW_SAMPLE_PATH, CONFIG_PATH
+from Resources.Image import *
+
+class CommSignals(QObject):
+	setup_bar = Signal(int, int)
+	preview_progress = Signal(int)
+
+class Worker(QRunnable):
+	signals = CommSignals()
+
+	def setup_progress_range(self, min=0, max=10):
+		self.setup_bar.emit(min, max)
+
+	def gen_logo_preview(self, texts, settings):
+		self.setup_progress_range(max=10)
+		generate_logo_preview(texts, settings, self.preview_progress)
+
+	@property
+	def setup_bar(self):
+		return self.signals.setup_bar
+	@property
+	def preview_progress(self):
+		return self.signals.preview_progress
+
+
 
 class MainWindow(QMainWindow):
 	__version = '0.01.0000'
+	config = None
 	def __init__(self) -> None:
 		super().__init__()
+		self.get_config()
 		self.get_Label_data()
 		self.init_UI()
+		self.setup_worker()
 		
-	def get_Label_data(self):
-		lang = 'KO-KR' # 언어정보
-		self.lang = get_language_pack(lang)
+	def get_config(self):
+		self.config = read_xml(CONFIG_PATH)
 
-	def get_label(self, name):
-		element = self.lang.find(f".//LabelText[@name='{name}']")
-		try:
-			return element.text
-		except:
+	def save_config(self):
+		save_xml(self.config, CONFIG_PATH)
+
+	def get_config_data(self, id):
+		result = self.config.find(f".//SettingOption[@id='{id}']")
+		if result.text:
+			return result.text
+		else:
 			return ''
+	
+	def get_Label_data(self):
+		if not self.config:
+			lang = locale.windows_locale[ctypes.windll.kernel32.GetUserDefaultUILanguage()]
+		else:
+			lang = self.get_config_data('language')
+		self.lang = get_language_pack(lang)
 	
 	def init_UI(self):
 		cwidget = self.cwidget_init()
 		self.setCentralWidget(cwidget)
 
 		self.setWindowTitle(f'{self.get_label("window_title")} V{self.__version}')
-		# self.setWindowIcon(QIcon(resource_path('img')))
-		self.setFixedSize(895, 500)
+		# self.setWindowIcon(QIcon(resource_path('Img','icon.png')))
+		self.setFixedSize(895, 600)
 		self.setAcceptDrops(True)
 
 		self.setFocusPolicy(Qt.FocusPolicy.ClickFocus)
 
-		
-
 		# self.__center__()
 		self.show()
+
+
+	def setup_worker(self):
+		self.worker = Worker()
+		self.worker.setup_bar.connect(self.setup_progress_bar)
+		self.worker.preview_progress.connect(self.update_progress_bar)
 
 	# 화면 중앙 배치
 	def __center__(self):
@@ -71,14 +111,21 @@ class MainWindow(QMainWindow):
 
 		self.imgFrame = ImageFrame(self)
 		imgGrid.addWidget(self.imgFrame)
+		self.progressBar = QProgressBar()
+		self.progressBar.setTextVisible(False)
+		self.progressBar.setFixedHeight(20)
+		self.progressBar.setRange(0, 1)
+		self.progressBar.setEnabled(False)
+		imgGrid.addWidget(self.progressBar)
 
 		# 우측 상세정보
 		detailLayout = QVBoxLayout()
 		mainGrid.addLayout(detailLayout)
-
 		detailLayout.addWidget(QLabel(self.get_label("detail_title")))
+
 		# 로고 지정 영역
 		self.logoFrame = LogoFrame(self)
+		self.logoFrame.changed.connect(self.show_logo_preview)
 		self.logoLabel = QLabel(self.get_label("logo_title"))
 		self.logoAddBtn = QPushButton(self.get_label("select_logo"))
 		self.logoAddBtn.clicked.connect(self.select_logo)
@@ -95,7 +142,8 @@ class MainWindow(QMainWindow):
 		self.inputTextTable.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
 		self.inputTextTable.setMaximumHeight(150)
 		for i in range(8):
-			text = self.get_label(f"tableitem{i+1}")
+			text = self.get_config_data(f"tableitem{i+1}")
+			if not text: text = self.get_label(f"tableitem{i+1}")
 			if i < 4:
 				self.inputTextTable.setItem(i, 0, QTableWidgetItem(text))
 			else:
@@ -104,11 +152,14 @@ class MainWindow(QMainWindow):
 		# 미리보기
 		self.watermarkTitle = QLabel(self.get_label('preview_title'))
 		self.watermarkPreview = QLabel(self.get_label('preview_img'))
-		self.watermarkPreview.setFixedSize(200, 100)
+		self.watermarkPreview.setFixedSize(200, 200)
 		self.watermarkPreview.setFrameShape(QFrame.Box)
 		self.toggleDetailBtn = QPushButton(self.get_label('detail_open'))
 		self.toggleDetailBtn.setToolTip(self.get_label('detail_open_tooltip'))
 		self.toggleDetailBtn.clicked.connect(self.toggle_detail)
+
+		self.gen_logoBtn = QPushButton(self.get_label('generate_logo'))
+		self.gen_logoBtn.clicked.connect(self.generate_logo_preview)
 
 		self.gen_previewBtn = QPushButton(self.get_label('generate_preview'))
 		self.gen_previewBtn.clicked.connect(self.generate_preview)
@@ -119,21 +170,38 @@ class MainWindow(QMainWindow):
 		
 		# 우측 상세설정
 		self.midLine = VLine()
+		# 기타 설정
+		self.settingsLabel = QLabel(self.get_label('setting_title'))
+		self.settingsWidget = QWidget()
+		settingLayout = QGridLayout()
+		self.settingsWidget.setLayout(settingLayout)
+		self.realtimeCheck = QCheckBox(self.get_label('realtime_update'))
+		if self.get_config_data('realtime_update'):
+			self.realtimeCheck.setChecked(self.get_config_data('realtime_update'))
+		else:
+			self.realtimeCheck.setChecked(False)
+		settingLayout.addWidget(self.realtimeCheck)
+
 		# 텍스트 위치
 		self.textLocalLabel = QLabel(self.get_label('local_title'))
 		self.textLocalWidget = QWidget()
 		localLayout = QHBoxLayout(self.textLocalWidget)
 		self.textLocalDown = QRadioButton(self.get_label('text_local_down'))
-		self.textLocalDown.setChecked(True)
-		self.textLocalDown.clicked.connect(self.show_logo_preview)
 		self.textLocalLeft = QRadioButton(self.get_label('text_local_left'))
-		self.textLocalLeft.clicked.connect(self.show_logo_preview)
 		self.textLocalRight = QRadioButton(self.get_label('text_local_right'))
-		self.textLocalRight.clicked.connect(self.show_logo_preview)
 		self.textLocalNone = QRadioButton(self.get_label('text_local_none'))
+
+		if self.get_config_data('text_location'):
+			[self.textLocalNone, self.textLocalDown, self.textLocalLeft, self.textLocalRight][self.get_config_data('text_location')].setChecked(True)
+		else:
+			self.textLocalDown.setChecked(True)
+
+		self.textLocalDown.clicked.connect(self.show_logo_preview)
+		self.textLocalLeft.clicked.connect(self.show_logo_preview)
+		self.textLocalRight.clicked.connect(self.show_logo_preview)
 		self.textLocalNone.clicked.connect(self.show_logo_preview)
 		localLayout.addWidget(self.textLocalDown)
-		localLayout.addWidget(self.textLocalLeft)
+		# localLayout.addWidget(self.textLocalLeft)
 		localLayout.addWidget(self.textLocalRight)
 		localLayout.addWidget(self.textLocalNone)
 		# 배열 방식
@@ -143,86 +211,98 @@ class MainWindow(QMainWindow):
 		alignLayout.setContentsMargins(1,1,1,2)
 		self.textAlignOneCol = QRadioButton(self.get_label('align_one_column'))
 		self.textAlignOneCol.setToolTip(self.get_label('align_one_column'))
-		self.textAlignOneCol.setChecked(True)
-		self.textAlignOneCol.toggled.connect(self.show_logo_preview)
+		# self.textAlignOneCol.setChecked(True)
 		
 		self.textAlignTwoCol = QRadioButton(self.get_label('align_two_column'))
 		self.textAlignTwoCol.setToolTip(self.get_label('align_two_column'))
-		self.textAlignTwoCol.toggled.connect(self.show_logo_preview)
 		
 		self.textAlignThreeCol = QRadioButton(self.get_label('align_three_column'))
 		self.textAlignThreeCol.setToolTip(self.get_label('align_three_column'))
+		
+		if self.get_config_data('text_location'):
+			[self.textAlignOneCol, self.textAlignTwoCol, self.textAlignThreeCol][self.get_config_data('align')].setChecked(True)
+		else:
+			self.textAlignOneCol.setChecked(True)
+
+		self.textAlignOneCol.toggled.connect(self.show_logo_preview)
+		self.textAlignTwoCol.toggled.connect(self.show_logo_preview)
 		self.textAlignThreeCol.toggled.connect(self.show_logo_preview)
 
 		alignLayout.addWidget(self.textAlignOneCol, 0, 0)
 		alignLayout.addWidget(self.textAlignTwoCol, 0, 1)
 		alignLayout.addWidget(self.textAlignThreeCol, 0, 2)
 		# 워터마크 위치
-		self.textPosLabel = QLabel(self.get_label('position_title'))
-		self.textPosWidget = QWidget()
-		textposLayout = QGridLayout()
-		textposLayout.setContentsMargins(1,1,1,10)
-		textposLayout.setSpacing(5)
-		textposLayout.setColumnMinimumWidth(0, 120)
-		textposLayout.setColumnMinimumWidth(1, 120)
-		textposLayout.setColumnMinimumWidth(2, 120)
-		self.textPosWidget.setLayout(textposLayout)
+		self.markLocLabel = QLabel(self.get_label('position_title'))
+		self.markLocWidget = QWidget()
+		markLocLayout = QGridLayout()
+		markLocLayout.setContentsMargins(1,1,1,10)
+		markLocLayout.setSpacing(5)
+		markLocLayout.setColumnMinimumWidth(0, 120)
+		markLocLayout.setColumnMinimumWidth(1, 120)
+		markLocLayout.setColumnMinimumWidth(2, 120)
+		self.markLocWidget.setLayout(markLocLayout)
 
-		self.textPos_Center = QRadioButton(self.get_label('pos_center'))
-		self.textPos_Center.setChecked(True)
+		self.markLoc_Center = QRadioButton(self.get_label('pos_center'))
+		self.markLoc_Center.setChecked(True)
 		# self.textPos_Center.toggled.connect(self.show_logo_preview)
-		self.textPos_Custom = QRadioButton(self.get_label('pos_custom'))
+		self.markLoc_Custom = QRadioButton(self.get_label('pos_custom'))
+		self.markLoc_Custom.toggled.connect(self.toggle_textpos)
 		# self.textPos_Custom.toggled.connect(self.show_logo_preview)
-		self.textPosCustomX = QSpinBox()
-		self.textPosCustomX.setRange(0, 100)
-		self.textPosCustomX.setToolTip(self.get_label('pos_x'))
-		self.textPosCustomX.setEnabled(False)
+		self.markLocCustomX = QSpinBox()
+		self.markLocCustomX.setRange(0, 100)
+		self.markLocCustomX.setToolTip(self.get_label('pos_x'))
+		self.markLocCustomX.setEnabled(False)
 		# self.textPosCustomX.valueChanged.connect(self.show_logo_preview)
 
-		self.textPosCustomY = QSpinBox()
-		self.textPosCustomY.setRange(0, 100)
-		self.textPosCustomY.setToolTip(self.get_label('pos_y'))
-		self.textPosCustomY.setEnabled(False)
+		self.markLocCustomY = QSpinBox()
+		self.markLocCustomY.setRange(0, 100)
+		self.markLocCustomY.setToolTip(self.get_label('pos_y'))
+		self.markLocCustomY.setEnabled(False)
 		# self.textPosCustomY.valueChanged.connect(self.show_logo_preview)
 
-		self.textPosCustomType = QComboBox()
-		self.textPosCustomType.addItems(['Pixel','%'])
-		self.textPosCustomType.setEnabled(False)
+		self.markLocCustomType = QComboBox()
+		self.markLocCustomType.addItems(['Pixel','%'])
+		self.markLocCustomType.currentIndexChanged.connect(self.select_custom_markloc_type)
+		self.markLocCustomType.setEnabled(False)
 		# self.textPosCustomType.currentTextChanged.connect(self.show_logo_preview)
 
-		self.textPos_Top = QRadioButton(self.get_label('pos_top'))
+		self.markLoc_Top = QRadioButton(self.get_label('pos_top'))
 		# self.textPos_Top.toggled.connect(self.show_logo_preview)
-		self.textPos_Bottom = QRadioButton(self.get_label('pos_bottom'))
+		self.markLoc_Bottom = QRadioButton(self.get_label('pos_bottom'))
 		# self.textPos_Bottom.toggled.connect(self.show_logo_preview)
-		self.textPos_Left = QRadioButton(self.get_label('pos_left'))
+		self.markLoc_Left = QRadioButton(self.get_label('pos_left'))
 		# self.textPos_Left.toggled.connect(self.show_logo_preview)
-		self.textPos_Right = QRadioButton(self.get_label('pos_right'))
+		self.markLoc_Right = QRadioButton(self.get_label('pos_right'))
 		# self.textPos_Right.toggled.connect(self.show_logo_preview)
 
-		self.textPos_TopLeft = QRadioButton(self.get_label('pos_topleft'))
+		self.markLoc_TopLeft = QRadioButton(self.get_label('pos_topleft'))
 		# self.textPos_TopLeft.toggled.connect(self.show_logo_preview)
-		self.textPos_TopRight = QRadioButton(self.get_label('pos_topright'))
+		self.markLoc_TopRight = QRadioButton(self.get_label('pos_topright'))
 		# self.textPos_TopRight.toggled.connect(self.show_logo_preview)
-		self.textPos_BottomLeft = QRadioButton(self.get_label('pos_bottomleft'))
+		self.markLoc_BottomLeft = QRadioButton(self.get_label('pos_bottomleft'))
 		# self.textPos_BottomLeft.toggled.connect(self.show_logo_preview)
-		self.textPos_BottomRight = QRadioButton(self.get_label('pos_bottomright'))
+		self.markLoc_BottomRight = QRadioButton(self.get_label('pos_bottomright'))
 		# self.textPos_BottomRight.toggled.connect(self.show_logo_preview)
 		
-		textposLayout.addWidget(self.textPos_TopLeft, 0, 0)
-		textposLayout.addWidget(self.textPos_Top, 0, 1)
-		textposLayout.addWidget(self.textPos_TopRight, 0, 2)
-		textposLayout.addWidget(self.textPos_Left, 1, 0)
-		textposLayout.addWidget(self.textPos_Center, 1, 1)
-		textposLayout.addWidget(self.textPos_Right, 1, 2)
-		textposLayout.addWidget(self.textPos_BottomLeft, 2, 0)
-		textposLayout.addWidget(self.textPos_Bottom, 2, 1)
-		textposLayout.addWidget(self.textPos_BottomRight, 2, 2)
-		textposLayout.addWidget(self.textPos_Custom, 3, 0, 1, 3)
-		textposLayout.addWidget(self.textPosCustomX, 4, 0)
-		textposLayout.addWidget(self.textPosCustomY, 4, 1)
-		textposLayout.addWidget(self.textPosCustomType, 4, 2)
+		if self.get_config_data('text_location'):
+			[self.markLoc_Center, self.markLoc_TopLeft, self.markLoc_Top, self.markLoc_TopRight, self.markLoc_Left, self.markLoc_Right, self.markLoc_BottomLeft, self.markLoc_Bottom, self.markLoc_BottomRight][self.get_config_data('mark_location')].setChecked(True)
+		else:
+			self.markLoc_Center.setChecked(True)
+			
+		markLocLayout.addWidget(self.markLoc_TopLeft, 0, 0)
+		markLocLayout.addWidget(self.markLoc_Top, 0, 1)
+		markLocLayout.addWidget(self.markLoc_TopRight, 0, 2)
+		markLocLayout.addWidget(self.markLoc_Left, 1, 0)
+		markLocLayout.addWidget(self.markLoc_Center, 1, 1)
+		markLocLayout.addWidget(self.markLoc_Right, 1, 2)
+		markLocLayout.addWidget(self.markLoc_BottomLeft, 2, 0)
+		markLocLayout.addWidget(self.markLoc_Bottom, 2, 1)
+		markLocLayout.addWidget(self.markLoc_BottomRight, 2, 2)
+		markLocLayout.addWidget(self.markLoc_Custom, 3, 0, 1, 3)
+		markLocLayout.addWidget(self.markLocCustomX, 4, 0)
+		markLocLayout.addWidget(self.markLocCustomY, 4, 1)
+		markLocLayout.addWidget(self.markLocCustomType, 4, 2)
 
-		self.textPos_Custom.toggled.connect(self.toggle_textpos)
 
 		# 회전
 		self.textOrientTitle = QLabel(self.get_label('orient_title'))
@@ -241,6 +321,9 @@ class MainWindow(QMainWindow):
 		self.textOrientSlider.setPageStep(90)
 		self.textOrientSlider.setOrientation(Qt.Orientation.Horizontal)
 		self.textOrientSlider.valueChanged.connect(self.set_orient_value)
+
+		if self.get_config_data('orientation'):
+			self.textOrientSlider.setValue(self.get_config_data('orientation'))
 		# self.textOrientSlider.valueChanged.connect(self.show_logo_preview)
 
 
@@ -252,13 +335,17 @@ class MainWindow(QMainWindow):
 		self.textTypeWidget.setLayout(typeLayout)
 
 		self.textType_Single = QRadioButton(self.get_label('type_single'))
-		self.textType_Single.setChecked(True)
 		self.textType_Expand = QRadioButton(self.get_label('type_expand'))
-		self.textType_Checkbox = QRadioButton(self.get_label('type_checkbox'))
+		self.textType_Checkboard = QRadioButton(self.get_label('type_checkbox'))
+
+		if self.get_config_data('type'):
+			[self.textType_Single, self.textType_Expand, self.textType_Checkboard][self.get_config_data('type')].setChecked(True)
+		else:
+			self.textType_Single.setChecked(True)
 
 		typeLayout.addWidget(self.textType_Single)
 		typeLayout.addWidget(self.textType_Expand)
-		typeLayout.addWidget(self.textType_Checkbox)
+		typeLayout.addWidget(self.textType_Checkboard)
 
 
 		# 좌측
@@ -276,10 +363,11 @@ class MainWindow(QMainWindow):
 		logoGrid.addWidget(HLine(), 5, 0, 1, 4)
 		logoGrid.addWidget(self.watermarkTitle, 6, 0, 1, 3)
 		logoGrid.addWidget(self.toggleDetailBtn, 6, 3)
-		logoGrid.addWidget(self.watermarkPreview, 7, 0, 2, 2)
-		logoGrid.addWidget(self.gen_previewBtn, 7, 3)
-		logoGrid.addWidget(self.saveBtn, 8, 3)
-		logoGrid.addItem(QSpacerItem(20,20,QSizePolicy.Policy.Preferred,QSizePolicy.Policy.Expanding), 9, 0)
+		logoGrid.addWidget(self.watermarkPreview, 7, 0, 3, 2)
+		logoGrid.addWidget(self.gen_logoBtn, 8, 2)
+		logoGrid.addWidget(self.gen_previewBtn, 9, 2)
+		logoGrid.addWidget(self.saveBtn, 9, 3)
+		# logoGrid.addItem(QSpacerItem(20,20,QSizePolicy.Policy.Preferred,QSizePolicy.Policy.Expanding), 20, 0)
 
 		# detailGrid.addWidget(self.midLine, 0, 5, 10, 1)
 		# 우측
@@ -287,22 +375,25 @@ class MainWindow(QMainWindow):
 		detailGrid = QGridLayout()
 		detailGrid.setContentsMargins(0,0,0,0)
 		detailGrid.setSpacing(5)
-		detailGrid.addWidget(self.textLocalLabel, 0, 0)
-		detailGrid.addWidget(self.textLocalWidget, 0, 1, 1, 3)
-		detailGrid.addWidget(HLine(), 1, 0, 1, 4)
-		detailGrid.addWidget(self.textAlignLabel, 2, 0)
-		detailGrid.addWidget(self.textAlignWidget, 3, 0, 1, 4)
-		detailGrid.addWidget(HLine(), 4, 0, 1, 4)
-		detailGrid.addWidget(self.textPosLabel, 5, 0)
-		detailGrid.addWidget(self.textPosWidget, 6, 0, 2, 4)
-		detailGrid.addWidget(HLine(), 7, 0, 1, 4)
-		detailGrid.addWidget(self.textOrientTitle, 8, 0)
-		detailGrid.addWidget(self.textOrientSlider, 9, 0, 1, 3)
-		detailGrid.addWidget(self.textOrientLine, 9, 3)
-		detailGrid.addWidget(HLine(), 10, 0, 1, 4)
-		detailGrid.addWidget(self.textTypeTitle, 11, 0)
-		detailGrid.addWidget(self.textTypeWidget, 12, 0, 1, 4)
-		# detailGrid.addItem(QSpacerItem(20,20,QSizePolicy.Policy.Preferred,QSizePolicy.Policy.Expanding), 20, 0)
+		detailGrid.addWidget(self.settingsLabel, 0, 0)
+		detailGrid.addWidget(self.settingsWidget, 1, 0, 1, 4)
+		detailGrid.addWidget(HLine(), 2, 0, 1, 4)
+		detailGrid.addWidget(self.textLocalLabel, 3, 0)
+		detailGrid.addWidget(self.textLocalWidget, 3, 1, 1, 3)
+		# detailGrid.addWidget(HLine(), 5, 0, 1, 4)
+		# detailGrid.addWidget(self.textAlignLabel, 6, 0)
+		# detailGrid.addWidget(self.textAlignWidget, 7, 0, 1, 4)
+		detailGrid.addWidget(HLine(), 8, 0, 1, 4)
+		detailGrid.addWidget(self.markLocLabel, 9, 0)
+		detailGrid.addWidget(self.markLocWidget, 10, 0, 2, 4)
+		detailGrid.addWidget(HLine(), 11, 0, 1, 4)
+		detailGrid.addWidget(self.textOrientTitle, 12, 0)
+		detailGrid.addWidget(self.textOrientSlider, 13, 0, 1, 3)
+		detailGrid.addWidget(self.textOrientLine, 13, 3)
+		detailGrid.addWidget(HLine(), 14, 0, 1, 4)
+		detailGrid.addWidget(self.textTypeTitle, 15, 0)
+		detailGrid.addWidget(self.textTypeWidget, 16, 0, 1, 4)
+		detailGrid.addItem(QSpacerItem(20,20,QSizePolicy.Policy.Preferred,QSizePolicy.Policy.Expanding), 20, 0)
 		
 
 		self.leftWidget = QWidget()
@@ -324,12 +415,10 @@ class MainWindow(QMainWindow):
 		detailFrame = QFrame()
 		detailFrame.setFrameShape(QFrame.Box)
 		detailFrame.setLayout(mainLayout)
+		
 		detailLayout.addWidget(detailFrame)
 		
 		self.show_logo_preview()
-		
-
-
 
 		cwidget.setLayout(mainGrid)
 
@@ -339,16 +428,53 @@ class MainWindow(QMainWindow):
 	######              Element Actions                   ######
 	############################################################
 
+	# 로딩바
+	def setup_progress_bar(self, min, max):
+		self.progressBar.setRange(min, max)
+		self.progressBar.setEnabled(True)
+
+	def update_progress_bar(self, progress):
+		self.progressBar.setValue(progress)
+		if self.progressBar.maximum() == self.progressBar.value():
+			self.progressBar.setEnabled(False)
+			self.progressBar.setRange(0, 100)
+			self.progressBar.setValue(0)
+
 	# 워터마크 위치 직접입력
 	def toggle_textpos(self):
-		if self.textPos_Custom.isChecked():
-			self.textPosCustomX.setEnabled(True)
-			self.textPosCustomY.setEnabled(True)
-			self.textPosCustomType.setEnabled(True)
+		if self.markLoc_Custom.isChecked():
+			self.markLocCustomX.setEnabled(True)
+			self.markLocCustomY.setEnabled(True)
+			self.markLocCustomType.setEnabled(True)
 		else:
-			self.textPosCustomX.setEnabled(False)
-			self.textPosCustomY.setEnabled(False)
-			self.textPosCustomType.setEnabled(False)
+			self.markLocCustomX.setEnabled(False)
+			self.markLocCustomY.setEnabled(False)
+			self.markLocCustomType.setEnabled(False)
+	
+	def select_custom_markloc_type(self):
+		img_size = self.imgFrame.pixmap().size()
+		if self.markLocCustomType.currentIndex() == 0:
+			x_value = self.markLocCustomX.value()
+			if x_value != 0:
+				x_value_alt = int(img_size.width()*x_value/100)
+				self.markLocCustomX.setValue(x_value_alt)
+			y_value = self.markLocCustomY.value()
+			if y_value != 0:
+				y_value_alt = int(img_size.height*y_value/100)
+				self.markLocCustomY.setValue(y_value_alt)
+			self.markLocCustomX.setMaximum(img_size.width())
+			self.markLocCustomY.setMaximum(img_size.height())
+		elif self.markLocCustomType.currentIndex() == 1:
+			x_value = self.markLocCustomX.value()
+			if x_value != 0:
+				x_value_alt = int(img_size.width()/x_value*100)
+				self.markLocCustomX.setValue(x_value_alt)
+			y_value = self.markLocCustomY.value()
+			if y_value != 0:
+				y_value_alt = int(img_size.height/y_value*100)
+				self.markLocCustomY.setValue(y_value_alt)
+			self.markLocCustomX.setMaximum(100)
+			self.markLocCustomY.setMaximum(100)
 
 	# 회전 슬라이더 값
 	def set_orient_value(self):
@@ -374,6 +500,11 @@ class MainWindow(QMainWindow):
 			filename = file_selector.selectedFiles()[0]
 			print(filename)
 			self.imgFrame.set_image(filename)
+			size = self.imgFrame.pixmap().size()
+			if self.markLocCustomType.currentIndex() == 0:
+				self.markLocCustomX.setMaximum(size[0])
+				self.markLocCustomY.setMaximum(size[1])
+
 
 	# 이미지 제거 버튼
 	def remove_img(self):
@@ -394,6 +525,7 @@ class MainWindow(QMainWindow):
 			filename = file_selector.selectedFiles()[0]
 			print(filename)
 			self.logoFrame.set_image(filename)
+			shutil.copyfile(filename, LOGO_PATH, follow_symlinks=False)
 		
 		self.show_logo_preview()
 
@@ -410,26 +542,134 @@ class MainWindow(QMainWindow):
 		if self.toggleDetailBtn.text() == self.get_label('detail_open'):
 			self.midLine.show()
 			self.rightWidget.show()
-			self.setFixedSize(1300, 500)
+			self.setFixedWidth(1300)
 			self.toggleDetailBtn.setText(self.get_label('detail_close'))
 			self.toggleDetailBtn.setToolTip(self.get_label('detail_close_tooltip'))
 		else:
 			self.midLine.hide()
 			self.rightWidget.hide()
-			self.setFixedSize(895, 500)
+			self.setFixedWidth(895)
 			self.toggleDetailBtn.setText(self.get_label('detail_open'))
 			self.toggleDetailBtn.setToolTip(self.get_label('detail_open_tooltip'))
 
+	def get_setting_data(self):
+		texts = []
+		for row in range(4):
+			row_temp = []
+			for col in range(2):
+				row_temp.append(self.inputTextTable.item(row, col).text())
+			texts.append(' '.join(row_temp))
+			row_temp = []
+		
+		settings = {}
+		settings["text_location"] = self.get_text_location_setting()
+		# settings["align"] = self.get_text_align_setting()
+		settings["mark_location"] = self.get_mark_location_setting
+		settings["orientation"] = self.textOrientSlider.value()
+		settings["type"] = self.get_mark_type_setting()
+
+		return texts, settings
+
 
 	# 로고 미리보기 갱신
-	def show_logo_preview(self):
-		# self.
-		pass
+	def show_logo_preview(self, force=False):
+		if not self.realtimeCheck.isChecked() or force:
+			return
+		if not self.logoFrame.pixmap():
+			return
+		texts, settings = self.get_setting_data()
 
-	def generate_preview(self):...
+		self.worker.gen_logo_preview(texts, settings)
+		preview = QPixmap(PREVIEW_SAMPLE_PATH)
+		self.watermarkPreview.setPixmap(preview)
 
+	def generate_logo_preview(self):
+		self.show_logo_preview(True)
+		self.update_config()
 
-	def save_img(self):...
+	def generate_preview(self):
+		texts, settings = self.get_setting_data()
+		self.update_config()
+
+	def save_img(self):
+		self.update_config()
+
+	############################################################
+	######                  Sub Method                    ######
+	############################################################
+
+	def get_label(self, name):
+		element = self.lang.getroot().find(f".//LabelText[@name='{name}']")
+		try:
+			return element.text
+		except:
+			return ''
+		
+	def update_xml(self, id, value):
+		element = self.config.getroot().find(f".//SettingOption[@id='{id}']")
+		element.text = value
+
+	def update_config(self):
+		texts, settings = self.get_setting_data()
+		for col in range(2):
+			for row in range(4):
+				value = self.inputTextTable.item(row, col).text()
+				self.update_xml(f'tableitem{col*4+row+1}', value)
+		self.update_xml('realtime_update', self.realtimeCheck.isChecked())
+		self.update_xml('text_location', settings['text_location'])
+		self.update_xml('mark_location', settings['mark_location'])
+		self.update_xml('orientation', settings['orientation'])
+		self.update_xml('type', settings['type'])
+
+		save_xml(self.config, CONFIG_PATH)
+
+	def get_text_location_setting(self):
+		if self.textLocalNone.isChecked():
+			return 0
+		elif self.textLocalDown.isChecked():
+			return 1
+		elif self.textLocalLeft.isChecked():
+			return 2
+		elif self.textLocalRight.isChecked():
+			return 3
+
+	def get_text_align_setting(self):
+		if self.textAlignOneCol.isChecked():
+			return 0
+		elif self.textAlignTwoCol.isChecked():
+			return 1
+		elif self.textAlignThreeCol.isChecked():
+			return 2
+
+	def get_mark_location_setting(self):
+		if self.markLoc_Center.isChecked():
+			return 0
+		elif self.markLoc_TopLeft.isChecked():
+			return 1
+		elif self.markLoc_Top.isChecked():
+			return 2
+		elif self.markLoc_TopRight.isChecked():
+			return 3
+		elif self.markLoc_Left.isChecked():
+			return 4
+		elif self.markLoc_Right.isChecked():
+			return 5
+		elif self.markLoc_BottomLeft.isChecked():
+			return 6
+		elif self.markLoc_Bottom.isChecked():
+			return 7
+		elif self.markLoc_BottomRight.isChecked():
+			return 8
+		elif self.markLoc_Custom.isChecked():
+			return [self.markLocCustomX.value(), self.markLocCustomY.value(), self.markLocCustomType.currentIndex()]
+
+	def get_mark_type_setting(self):
+		if self.textType_Single.isChecked():
+			return 0
+		elif self.textType_Expand.isChecked():
+			return 1
+		elif self.textType_Checkboard.isChecked():
+			return 2
 
 
 
@@ -437,7 +677,7 @@ class MainWindow(QMainWindow):
 class ImageFrame(QLabel):
 	def __init__(self, parent: QWidget=None) -> None:
 		super().__init__(parent)
-		self.setFixedSize(450,450)
+		self.setFixedWidth(450)
 		self.setAcceptDrops(True)
 		self.setStyleSheet('QLabel{border: 4px dashed #aaa};')
 		self.setText(self.parent().get_label('img_input_guide'))
@@ -477,6 +717,7 @@ class ImageFrame(QLabel):
 
 # 이미지 표시
 class LogoFrame(QLabel):
+	changed = Signal()
 	def __init__(self, parent: QWidget=None) -> None:
 		super().__init__(parent)
 		self.setFixedSize(100,100)
@@ -487,6 +728,11 @@ class LogoFrame(QLabel):
 		# 이미지 들어갈 라벨
 		self.setAlignment(Qt.AlignmentFlag.AlignCenter)
 		self.setAcceptDrops(True)
+
+		if os.path.exists(LOGO_PATH):
+			img = QPixmap(LOGO_PATH)
+			logo = img.scaledToWidth(self.width())
+			self.setPixmap(logo)
 		# self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
 
 
@@ -504,7 +750,10 @@ class LogoFrame(QLabel):
 	
 	def dropEvent(self, event: QDropEvent) -> None:
 		if event.mimeData().hasImage:
-			self.set_image(event.mimeData().urls()[0].toLocalFile())
+			path = event.mimeData().urls()[0].toLocalFile()
+			self.set_image(path)
+			shutil.copyfile(path, LOGO_PATH)
+			self.changed.emit()
 			event.accept()
 		else:
 			event.ignore()
