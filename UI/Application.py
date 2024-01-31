@@ -1,36 +1,22 @@
 import os, shutil, sys, ctypes, locale
-from PySide6.QtCore import Qt, QMimeData, Signal, QRunnable, QObject
+from typing import Optional
+from PySide6.QtCore import Qt, QMimeData, Signal, QRunnable, QObject, QTimer, QThreadPool
+from PySide6.QtCore import QTimerEvent
 from PySide6.QtWidgets import QMainWindow, QApplication
 from PySide6.QtWidgets import QWidget, QHBoxLayout, QVBoxLayout, QLayout, QSizePolicy, QGridLayout, QSpacerItem
 from PySide6.QtWidgets import QFrame, QLabel, QPushButton, QFileDialog, QTableWidget, QRadioButton, QCheckBox, QLineEdit, QComboBox, QSpinBox, QSlider, QProgressBar
 from PySide6.QtWidgets import QTableWidgetItem, QHeaderView
-from PySide6.QtGui import QDragEnterEvent, QDropEvent, QIcon, QMouseEvent, QPixmap, QScreen, QDrag, QColor
+from PySide6.QtGui import QDragEnterEvent, QDropEvent, QIcon, QMouseEvent, QPixmap, QScreen, QDrag, QColor, QPalette
 from time import sleep
 
-from Resources.Addons import read_xml, save_xml, resource_path, get_language_pack, LOGO_PATH, PREVIEW_PATH, PREVIEW_SAMPLE_PATH, CONFIG_PATH
+from Resources.Runners import Timer, LogoPreview, SaveImage
+from Resources.Addons import read_xml, save_xml, resource_path, get_language_pack, LOGO_PATH, WATERMARK_PATH, WATERMARK_SAMPLE_PATH, CONFIG_PATH
 from Resources.Image import *
 
-class CommSignals(QObject):
-	setup_bar = Signal(int, int)
-	preview_progress = Signal(int)
 
-class Worker(QRunnable):
-	signals = CommSignals()
 
-	def setup_progress_range(self, min=0, max=10):
-		self.setup_bar.emit(min, max)
-
-	def gen_logo_preview(self, texts, settings):
-		self.setup_progress_range(max=10)
-		generate_logo_preview(texts, settings, self.preview_progress)
-
-	@property
-	def setup_bar(self):
-		return self.signals.setup_bar
-	@property
-	def preview_progress(self):
-		return self.signals.preview_progress
-
+palette_red = QPalette()
+palette_red.setColor(QPalette.ColorRole.Highlight, QColor(Qt.GlobalColor.red))
 
 
 class MainWindow(QMainWindow):
@@ -51,10 +37,17 @@ class MainWindow(QMainWindow):
 
 	def get_config_data(self, id):
 		result = self.config.find(f".//SettingOption[@id='{id}']")
-		if result.text:
-			return result.text
+		type = result.attrib["type"]
+		if result.attrib["value"]:
+			if type == 'str':
+				value = result.attrib["value"]
+			elif type == 'int':
+				value = int(result.attrib["value"])
+			elif type =='bool':
+				value = True if result.attrib["value"]=='True' else False
+			return value
 		else:
-			return ''
+			return 
 	
 	def get_Label_data(self):
 		if not self.config:
@@ -69,7 +62,7 @@ class MainWindow(QMainWindow):
 
 		self.setWindowTitle(f'{self.get_label("window_title")} V{self.__version}')
 		# self.setWindowIcon(QIcon(resource_path('Img','icon.png')))
-		self.setFixedSize(895, 600)
+		self.setFixedSize(895, 590)
 		self.setAcceptDrops(True)
 
 		self.setFocusPolicy(Qt.FocusPolicy.ClickFocus)
@@ -79,9 +72,21 @@ class MainWindow(QMainWindow):
 
 
 	def setup_worker(self):
-		self.worker = Worker()
-		self.worker.setup_bar.connect(self.setup_progress_bar)
-		self.worker.preview_progress.connect(self.update_progress_bar)
+	# 	worker = Worker()
+	# 	worker.setup_bar.connect(self.setup_progress_bar)
+	# 	worker.preview_progress.connect(self.update_progress_bar)
+	# 	worker.timer_end.connect(self.timer_cleanup)
+	# 	self.worker = worker
+		self.pool = QThreadPool()
+		timer = QTimer()
+		timer.timeout.connect(self.clear_pool)
+		timer.start(100)
+	# 	self.pool.start(worker)
+		
+	def clear_pool(self):
+		print('before clear:', self.pool.activeThreadCount())
+		self.pool.clear()
+		print('after clear:', self.pool.activeThreadCount())
 
 	# 화면 중앙 배치
 	def __center__(self):
@@ -111,12 +116,6 @@ class MainWindow(QMainWindow):
 
 		self.imgFrame = ImageFrame(self)
 		imgGrid.addWidget(self.imgFrame)
-		self.progressBar = QProgressBar()
-		self.progressBar.setTextVisible(False)
-		self.progressBar.setFixedHeight(20)
-		self.progressBar.setRange(0, 1)
-		self.progressBar.setEnabled(False)
-		imgGrid.addWidget(self.progressBar)
 
 		# 우측 상세정보
 		detailLayout = QVBoxLayout()
@@ -143,7 +142,7 @@ class MainWindow(QMainWindow):
 		self.inputTextTable.setMaximumHeight(150)
 		for i in range(8):
 			text = self.get_config_data(f"tableitem{i+1}")
-			if not text: text = self.get_label(f"tableitem{i+1}")
+			if self.get_config_data("first_run"): text = self.get_label(f"tableitem{i+1}")
 			if i < 4:
 				self.inputTextTable.setItem(i, 0, QTableWidgetItem(text))
 			else:
@@ -153,6 +152,7 @@ class MainWindow(QMainWindow):
 		self.watermarkTitle = QLabel(self.get_label('preview_title'))
 		self.watermarkPreview = QLabel(self.get_label('preview_img'))
 		self.watermarkPreview.setFixedSize(200, 200)
+		self.watermarkPreview.setContentsMargins(0, 0, 0, 0)
 		self.watermarkPreview.setFrameShape(QFrame.Box)
 		self.toggleDetailBtn = QPushButton(self.get_label('detail_open'))
 		self.toggleDetailBtn.setToolTip(self.get_label('detail_open_tooltip'))
@@ -166,6 +166,18 @@ class MainWindow(QMainWindow):
 
 		self.saveBtn = QPushButton(self.get_label('save'))
 		self.saveBtn.clicked.connect(self.save_img)
+
+		self.resultLabel = QLabel()
+		self.resultLabel.setAlignment(Qt.AlignmentFlag.AlignTop)
+		self.resultLabel.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Expanding)
+		self.resultLabel.setWordWrap(True)
+		self.resultLabel.setMaximumWidth(190)
+
+		self.progressBar = QProgressBar()
+		self.progressBar.setTextVisible(False)
+		self.progressBar.setFixedHeight(20)
+		self.progressBar.setRange(0, 1)
+		self.progressBar.setEnabled(False)
 
 		
 		# 우측 상세설정
@@ -303,6 +315,22 @@ class MainWindow(QMainWindow):
 		markLocLayout.addWidget(self.markLocCustomY, 4, 1)
 		markLocLayout.addWidget(self.markLocCustomType, 4, 2)
 
+		# 크기
+		self.markSizeTitle = QLabel(self.get_label('size_title'))
+
+		self.markSizeWidth = QSpinBox()
+		self.markSizeWidth.setRange(0, 100)
+		if self.get_config_data('mark_size'):
+			self.markSizeWidth.setValue(self.get_config_data('mark_size'))
+
+		self.markSizeType = QComboBox()
+		self.markSizeType.addItems(['Pixel','%'])
+		if self.get_config_data('mark_size_type'):
+			self.markSizeType.setCurrentIndex(self.get_config_data('mark_size_type'))
+		self.markSizeType.currentIndexChanged.connect(self.select_custom_marksize_type)
+
+		self.markSizeDescriptionLabel = QLabel(self.get_label('size_desc'))
+
 
 		# 회전
 		self.textOrientTitle = QLabel(self.get_label('orient_title'))
@@ -363,10 +391,12 @@ class MainWindow(QMainWindow):
 		logoGrid.addWidget(HLine(), 5, 0, 1, 4)
 		logoGrid.addWidget(self.watermarkTitle, 6, 0, 1, 3)
 		logoGrid.addWidget(self.toggleDetailBtn, 6, 3)
-		logoGrid.addWidget(self.watermarkPreview, 7, 0, 3, 2)
-		logoGrid.addWidget(self.gen_logoBtn, 8, 2)
-		logoGrid.addWidget(self.gen_previewBtn, 9, 2)
-		logoGrid.addWidget(self.saveBtn, 9, 3)
+		logoGrid.addWidget(self.watermarkPreview, 7, 0, 4, 2)
+		logoGrid.addWidget(self.gen_logoBtn, 7, 2)
+		logoGrid.addWidget(self.gen_previewBtn, 8, 2)
+		logoGrid.addWidget(self.saveBtn, 8, 3)
+		logoGrid.addWidget(self.progressBar, 9, 2, 1, 2)
+		logoGrid.addWidget(self.resultLabel, 10, 2, 1, 2)
 		# logoGrid.addItem(QSpacerItem(20,20,QSizePolicy.Policy.Preferred,QSizePolicy.Policy.Expanding), 20, 0)
 
 		# detailGrid.addWidget(self.midLine, 0, 5, 10, 1)
@@ -387,13 +417,18 @@ class MainWindow(QMainWindow):
 		detailGrid.addWidget(self.markLocLabel, 9, 0)
 		detailGrid.addWidget(self.markLocWidget, 10, 0, 2, 4)
 		detailGrid.addWidget(HLine(), 11, 0, 1, 4)
-		detailGrid.addWidget(self.textOrientTitle, 12, 0)
-		detailGrid.addWidget(self.textOrientSlider, 13, 0, 1, 3)
-		detailGrid.addWidget(self.textOrientLine, 13, 3)
-		detailGrid.addWidget(HLine(), 14, 0, 1, 4)
-		detailGrid.addWidget(self.textTypeTitle, 15, 0)
-		detailGrid.addWidget(self.textTypeWidget, 16, 0, 1, 4)
-		detailGrid.addItem(QSpacerItem(20,20,QSizePolicy.Policy.Preferred,QSizePolicy.Policy.Expanding), 20, 0)
+		detailGrid.addWidget(self.markSizeTitle, 12, 0)
+		detailGrid.addWidget(self.markSizeWidth, 13, 0)
+		detailGrid.addWidget(self.markSizeType, 13, 1)
+		detailGrid.addWidget(self.markSizeDescriptionLabel, 14, 0, 1, 4)
+		detailGrid.addWidget(HLine(), 15, 0, 1, 4)
+		detailGrid.addWidget(self.textOrientTitle, 16, 0)
+		detailGrid.addWidget(self.textOrientSlider, 17, 0, 1, 3)
+		detailGrid.addWidget(self.textOrientLine, 17, 3)
+		detailGrid.addWidget(HLine(), 18, 0, 1, 4)
+		detailGrid.addWidget(self.textTypeTitle, 19, 0)
+		detailGrid.addWidget(self.textTypeWidget, 20, 0, 1, 4)
+		# detailGrid.addItem(QSpacerItem(20,20,QSizePolicy.Policy.Preferred,QSizePolicy.Policy.Expanding), 21, 0)
 		
 
 		self.leftWidget = QWidget()
@@ -428,12 +463,28 @@ class MainWindow(QMainWindow):
 	######              Element Actions                   ######
 	############################################################
 
+	def show_result_msg(self, msg):
+		self.resultLabel.setText(msg)
+		worker = Timer(10, 'RM_0')
+		worker.timer_end.connect(self.timer_cleanup)
+		self.pool.start(worker)
+
+
 	# 로딩바
 	def setup_progress_bar(self, min, max):
 		self.progressBar.setRange(min, max)
 		self.progressBar.setEnabled(True)
 
 	def update_progress_bar(self, progress):
+		print('progress', progress)
+		if isinstance(progress, str):
+			self.resultLabel.setText(progress)
+			self.progressBar.setStyleSheet('QProgressBar::chunk{background-color:red;};')
+			self.progressBar.setValue(self.progressBar.maximum())
+			worker = Timer(5, 'PG_0')
+			worker.timer_end.connect(self.timer_cleanup)
+			self.pool.start(worker)
+			return 
 		self.progressBar.setValue(progress)
 		if self.progressBar.maximum() == self.progressBar.value():
 			self.progressBar.setEnabled(False)
@@ -476,6 +527,20 @@ class MainWindow(QMainWindow):
 			self.markLocCustomX.setMaximum(100)
 			self.markLocCustomY.setMaximum(100)
 
+	def select_custom_marksize_type(self):
+		img_size = self.imgFrame.pixmap().size()
+		if self.markSizeType.currentIndex() == 0:
+			width = self.markSizeWidth.value()
+			width_alt = int(width/img_size.width()*100)
+			self.markSizeWidth.setValue(width_alt)
+			self.markSizeWidth.setMaximum(100)
+		elif self.markSizeType.currentIndex() == 1:
+			width = self.markSizeWidth.value()
+			width_alt = img_size.width()*width
+			self.markSizeWidth.setValue(width_alt)
+			self.markSizeWidth.setMaximum(img_size.width())
+
+
 	# 회전 슬라이더 값
 	def set_orient_value(self):
 		self.textOrientLine.setText(str(self.textOrientSlider.value()))
@@ -502,8 +567,12 @@ class MainWindow(QMainWindow):
 			self.imgFrame.set_image(filename)
 			size = self.imgFrame.pixmap().size()
 			if self.markLocCustomType.currentIndex() == 0:
-				self.markLocCustomX.setMaximum(size[0])
-				self.markLocCustomY.setMaximum(size[1])
+				self.markLocCustomX.setMaximum(size.width())
+				self.markLocCustomY.setMaximum(size.height())
+			if self.markSizeType.currentIndex() == 0:
+				self.markSizeWidth.setMaximum(size.width())
+			shutil.copy(filename, MAIN_IMAGE_PATH)
+			
 
 
 	# 이미지 제거 버튼
@@ -563,40 +632,72 @@ class MainWindow(QMainWindow):
 		
 		settings = {}
 		settings["text_location"] = self.get_text_location_setting()
-		# settings["align"] = self.get_text_align_setting()
-		settings["mark_location"] = self.get_mark_location_setting
+		settings["align"] = self.get_text_align_setting()
+		settings["mark_size"] = self.get_mark_size_setting()
+		settings["mark_location"] = self.get_mark_location_setting()
+		settings['mark_custom_location'] = [*self.get_mark_custom_location()]
 		settings["orientation"] = self.textOrientSlider.value()
 		settings["type"] = self.get_mark_type_setting()
-
 		return texts, settings
 
 
 	# 로고 미리보기 갱신
-	def show_logo_preview(self, force=False):
-		if not self.realtimeCheck.isChecked() or force:
+	def show_logo_preview(self, *, force=False):
+		if not self.realtimeCheck.isChecked() and not force:
 			return
-		if not self.logoFrame.pixmap():
-			return
-		texts, settings = self.get_setting_data()
+		if self.logoFrame.pixmap():
+			texts, settings = self.get_setting_data()
 
-		self.worker.gen_logo_preview(texts, settings)
-		preview = QPixmap(PREVIEW_SAMPLE_PATH)
+			worker = LogoPreview(texts, settings)
+			worker.setup_bar.connect(self.setup_progress_bar)
+			worker.progress.connect(self.update_progress_bar)
+			worker.finish.connect(self.finish_logo_preview)
+			self.pool.start(worker)
+		else:
+			self.show_result_msg(self.get_label('no_logo'))
+
+	def finish_logo_preview(self):
+		preview = QPixmap(WATERMARK_SAMPLE_PATH)
 		self.watermarkPreview.setPixmap(preview)
+		self.show_result_msg(self.get_label('finish_logo_gen'))
 
 	def generate_logo_preview(self):
-		self.show_logo_preview(True)
+		self.show_logo_preview(force=True)
 		self.update_config()
 
 	def generate_preview(self):
-		texts, settings = self.get_setting_data()
 		self.update_config()
+		texts, settings = self.get_setting_data()
 
 	def save_img(self):
-		self.update_config()
+		if self.imgFrame.pixmap():
+			self.update_config()
+			texts, settings = self.get_setting_data()
+			path = self.imgFrame.toolTip()
+			# filename = os.path.basename(path)
+			
+			worker = SaveImage(settings, path)
+			worker.setup_bar.connect(self.setup_progress_bar)
+			worker.progress.connect(self.update_progress_bar)
+			worker.finish.connect(self.finish_save_image)
+			self.pool.start(worker)
+		else:
+			self.show_result_msg(self.get_label('no_main_image'))
+
+	def finish_save_image(self):
+		self.show_result_msg(self.get_label('finish_save'))
 
 	############################################################
 	######                  Sub Method                    ######
 	############################################################
+
+	def timer_cleanup(self, code):
+		if code == 'PG_0':
+			self.progressBar.setStyleSheet('')
+			self.progressBar.setValue(0)
+			self.resultLabel.setText('')
+		elif code == 'RM_0':
+			self.resultLabel.setText('')
 
 	def get_label(self, name):
 		element = self.lang.getroot().find(f".//LabelText[@name='{name}']")
@@ -607,7 +708,7 @@ class MainWindow(QMainWindow):
 		
 	def update_xml(self, id, value):
 		element = self.config.getroot().find(f".//SettingOption[@id='{id}']")
-		element.text = value
+		element.attrib["value"] = str(value)
 
 	def update_config(self):
 		texts, settings = self.get_setting_data()
@@ -615,9 +716,16 @@ class MainWindow(QMainWindow):
 			for row in range(4):
 				value = self.inputTextTable.item(row, col).text()
 				self.update_xml(f'tableitem{col*4+row+1}', value)
+		self.update_xml('first_run', False)
 		self.update_xml('realtime_update', self.realtimeCheck.isChecked())
 		self.update_xml('text_location', settings['text_location'])
+		self.update_xml('align', settings['align'])
+		self.update_xml('mark_size', settings['mark_size'][0])
+		self.update_xml('mark_size_type', settings['mark_size'][1])
 		self.update_xml('mark_location', settings['mark_location'])
+		self.update_xml('mark_custom_x', settings['mark_custom_location'][0])
+		self.update_xml('mark_custom_y', settings['mark_custom_location'][1])
+		self.update_xml('mark_custom_type', settings['mark_custom_location'][2])
 		self.update_xml('orientation', settings['orientation'])
 		self.update_xml('type', settings['type'])
 
@@ -641,6 +749,14 @@ class MainWindow(QMainWindow):
 		elif self.textAlignThreeCol.isChecked():
 			return 2
 
+	def get_mark_size_setting(self):
+		if self.markSizeType.currentIndex() == 1:
+			img_width = self.imgFrame.pixmap().size()
+			width = int(img_width*self.markSizeWidth.value()/100)
+		else:
+			width = self.markSizeWidth.value()
+		return [width, self.markSizeType.currentIndex()]
+
 	def get_mark_location_setting(self):
 		if self.markLoc_Center.isChecked():
 			return 0
@@ -661,7 +777,10 @@ class MainWindow(QMainWindow):
 		elif self.markLoc_BottomRight.isChecked():
 			return 8
 		elif self.markLoc_Custom.isChecked():
-			return [self.markLocCustomX.value(), self.markLocCustomY.value(), self.markLocCustomType.currentIndex()]
+			return 9
+	
+	def get_mark_custom_location(self):
+		return self.markLocCustomX.value(), self.markLocCustomY.value(), self.markLocCustomType.currentIndex()
 
 	def get_mark_type_setting(self):
 		if self.textType_Single.isChecked():
@@ -702,7 +821,9 @@ class ImageFrame(QLabel):
 	
 	def dropEvent(self, event: QDropEvent) -> None:
 		if event.mimeData().hasImage:
-			self.set_image(event.mimeData().urls()[0].toLocalFile())
+			path = event.mimeData().urls()[0].toLocalFile()
+			self.set_image(path)
+			shutil.copy(path, MAIN_IMAGE_PATH)
 			event.accept()
 		else:
 			event.ignore()

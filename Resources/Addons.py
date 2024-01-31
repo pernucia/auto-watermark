@@ -2,14 +2,18 @@ import os, sys, shutil
 import xml.etree.ElementTree as ET
 from random import randrange
 
+# PATHS
 APPDATA_PATH = os.getenv('APPDATA')
 MAIN_PATH = os.path.join(APPDATA_PATH, 'auto_watermark')
-CONFIG_PATH = os.path.join(MAIN_PATH, 'setting.config')
 RESOURCE_PATH = os.path.join(MAIN_PATH, 'rsc')
-LOGO_PATH = os.path.join(RESOURCE_PATH, 'logo.png')
-PREVIEW_PATH = os.path.join(RESOURCE_PATH, 'preview.png')
-PREVIEW_SAMPLE_PATH = os.path.join(RESOURCE_PATH, 'preview_sample.png')
 TMP_PATH = os.path.join(MAIN_PATH, 'tmp')
+# FILES
+CONFIG_PATH = os.path.join(MAIN_PATH, 'setting.config')
+LOGO_PATH = os.path.join(RESOURCE_PATH, 'logo.png')
+WATERMARK_PATH = os.path.join(RESOURCE_PATH, 'watermark.png')
+WATERMARK_SAMPLE_PATH = os.path.join(RESOURCE_PATH, 'watermark_sample.png')
+PREVIEW_PATH = os.path.join(RESOURCE_PATH, 'preview.png')
+MAIN_IMAGE_PATH = os.path.join(RESOURCE_PATH, 'image.png')
 
 def prep_env():
 	paths = [MAIN_PATH, RESOURCE_PATH, TMP_PATH]
@@ -18,7 +22,8 @@ def prep_env():
 		if not os.path.exists(path):
 			os.makedirs(path, exist_ok=True)
 		if path == MAIN_PATH:
-			shutil.copy(resource_path('setting.config'), CONFIG_PATH)
+			if not os.path.exists(CONFIG_PATH):
+				shutil.copy(resource_path('setting.config'), CONFIG_PATH)
 
 
 def resource_path(*path):
@@ -30,8 +35,9 @@ def resource_path(*path):
 	return os.path.join(base_path, *path)
 
 def save_xml(data:ET.ElementTree, *path):
-	with open(resource_path(*path), 'w', encoding='utf-8') as f:
-		data.write(f)
+	data.write(resource_path(*path), encoding="utf-8", xml_declaration=True)
+	# with open(resource_path(*path), 'w', encoding='utf-8') as f:
+	# 	data.write(f)
 
 def read_xml(*path):
 	tree = ET.parse(resource_path(*path))
