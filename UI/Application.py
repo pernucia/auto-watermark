@@ -9,7 +9,7 @@ from PySide6.QtWidgets import QTableWidgetItem, QHeaderView
 from PySide6.QtGui import QDragEnterEvent, QDropEvent, QIcon, QMouseEvent, QPixmap, QScreen, QDrag, QColor, QPalette
 from time import sleep
 
-from Resources.Runners import Timer, LogoPreview, SaveImage
+from Resources.Runners import Timer, LogoPreview, SaveImage, ShowImage
 from Resources.Addons import read_xml, save_xml, resource_path, get_language_pack, LOGO_PATH, WATERMARK_PATH, WATERMARK_SAMPLE_PATH, CONFIG_PATH
 from Resources.Image import *
 
@@ -72,21 +72,7 @@ class MainWindow(QMainWindow):
 
 
 	def setup_worker(self):
-	# 	worker = Worker()
-	# 	worker.setup_bar.connect(self.setup_progress_bar)
-	# 	worker.preview_progress.connect(self.update_progress_bar)
-	# 	worker.timer_end.connect(self.timer_cleanup)
-	# 	self.worker = worker
 		self.pool = QThreadPool()
-		timer = QTimer()
-		timer.timeout.connect(self.clear_pool)
-		timer.start(100)
-	# 	self.pool.start(worker)
-		
-	def clear_pool(self):
-		print('before clear:', self.pool.activeThreadCount())
-		self.pool.clear()
-		print('after clear:', self.pool.activeThreadCount())
 
 	# 화면 중앙 배치
 	def __center__(self):
@@ -150,10 +136,7 @@ class MainWindow(QMainWindow):
 		self.inputTextTable.cellChanged.connect(self.show_logo_preview)
 		# 미리보기
 		self.watermarkTitle = QLabel(self.get_label('preview_title'))
-		self.watermarkPreview = QLabel(self.get_label('preview_img'))
-		self.watermarkPreview.setFixedSize(200, 200)
-		self.watermarkPreview.setContentsMargins(0, 0, 0, 0)
-		self.watermarkPreview.setFrameShape(QFrame.Box)
+		self.watermarkPreview = LogoPreviewFrame(self.get_label('preview_img'))
 		self.toggleDetailBtn = QPushButton(self.get_label('detail_open'))
 		self.toggleDetailBtn.setToolTip(self.get_label('detail_open_tooltip'))
 		self.toggleDetailBtn.clicked.connect(self.toggle_detail)
@@ -255,7 +238,6 @@ class MainWindow(QMainWindow):
 		self.markLocWidget.setLayout(markLocLayout)
 
 		self.markLoc_Center = QRadioButton(self.get_label('pos_center'))
-		self.markLoc_Center.setChecked(True)
 		# self.textPos_Center.toggled.connect(self.show_logo_preview)
 		self.markLoc_Custom = QRadioButton(self.get_label('pos_custom'))
 		self.markLoc_Custom.toggled.connect(self.toggle_textpos)
@@ -296,8 +278,15 @@ class MainWindow(QMainWindow):
 		self.markLoc_BottomRight = QRadioButton(self.get_label('pos_bottomright'))
 		# self.textPos_BottomRight.toggled.connect(self.show_logo_preview)
 		
-		if self.get_config_data('text_location'):
-			[self.markLoc_Center, self.markLoc_TopLeft, self.markLoc_Top, self.markLoc_TopRight, self.markLoc_Left, self.markLoc_Right, self.markLoc_BottomLeft, self.markLoc_Bottom, self.markLoc_BottomRight][self.get_config_data('mark_location')].setChecked(True)
+		if self.get_config_data('mark_location'):
+			[self.markLoc_Center, self.markLoc_TopLeft, self.markLoc_Top, self.markLoc_TopRight, self.markLoc_Left, self.markLoc_Right, self.markLoc_BottomLeft, self.markLoc_Bottom, self.markLoc_BottomRight, self.markLoc_Custom][self.get_config_data('mark_location')].setChecked(True)
+		else:
+			self.markLoc_Center.setChecked(True)
+
+		if self.get_config_data('mark_location') == 9:
+			self.markLocCustomX.setValue(self.get_config_data('mark_custom_x'))
+			self.markLocCustomY.setValue(self.get_config_data('mark_custom_y'))
+			self.markLocCustomType.setCurrentIndex(self.get_config_data('mark_custom_type'))
 		else:
 			self.markLoc_Center.setChecked(True)
 			
@@ -465,7 +454,7 @@ class MainWindow(QMainWindow):
 
 	def show_result_msg(self, msg):
 		self.resultLabel.setText(msg)
-		worker = Timer(10, 'RM_0')
+		worker = Timer(5, 'RM_0')
 		worker.timer_end.connect(self.timer_cleanup)
 		self.pool.start(worker)
 
@@ -503,42 +492,49 @@ class MainWindow(QMainWindow):
 			self.markLocCustomType.setEnabled(False)
 	
 	def select_custom_markloc_type(self):
-		img_size = self.imgFrame.pixmap().size()
+		img_width = self.imgFrame.img_width
+		img_height = self.imgFrame.img_height
 		if self.markLocCustomType.currentIndex() == 0:
+			self.markLocCustomX.setMaximum(img_width)
+			self.markLocCustomY.setMaximum(img_height)
 			x_value = self.markLocCustomX.value()
 			if x_value != 0:
-				x_value_alt = int(img_size.width()*x_value/100)
+				x_value_alt, ext = divmod(img_width*x_value, 100)
+				x_value_alt = x_value_alt + round(ext/100)
 				self.markLocCustomX.setValue(x_value_alt)
 			y_value = self.markLocCustomY.value()
 			if y_value != 0:
-				y_value_alt = int(img_size.height*y_value/100)
+				y_value_alt, ext = divmod(img_width*y_value, 100)
+				y_value_alt = y_value_alt + round(ext/100)
 				self.markLocCustomY.setValue(y_value_alt)
-			self.markLocCustomX.setMaximum(img_size.width())
-			self.markLocCustomY.setMaximum(img_size.height())
 		elif self.markLocCustomType.currentIndex() == 1:
-			x_value = self.markLocCustomX.value()
-			if x_value != 0:
-				x_value_alt = int(img_size.width()/x_value*100)
-				self.markLocCustomX.setValue(x_value_alt)
-			y_value = self.markLocCustomY.value()
-			if y_value != 0:
-				y_value_alt = int(img_size.height/y_value*100)
-				self.markLocCustomY.setValue(y_value_alt)
 			self.markLocCustomX.setMaximum(100)
 			self.markLocCustomY.setMaximum(100)
+			x_value = self.markLocCustomX.value()
+			if x_value != 0:
+				x_value_alt, ext = divmod(img_width*100, x_value)
+				x_value_alt = x_value_alt + round(ext/x_value)
+				self.markLocCustomX.setValue(x_value_alt)
+			y_value = self.markLocCustomY.value()
+			if y_value != 0:
+				y_value_alt, ext = divmod(img_width*100, y_value)
+				y_value_alt = y_value_alt + round(ext/y_value)
+				self.markLocCustomY.setValue(y_value_alt)
 
 	def select_custom_marksize_type(self):
-		img_size = self.imgFrame.pixmap().size()
+		img_width = self.imgFrame.img_width
 		if self.markSizeType.currentIndex() == 0:
 			width = self.markSizeWidth.value()
-			width_alt = int(width/img_size.width()*100)
+			width_alt, ext = divmod(img_width*width, 100)
+			width_alt = width_alt + round(ext/100)
+			self.markSizeWidth.setMaximum(img_width)
 			self.markSizeWidth.setValue(width_alt)
-			self.markSizeWidth.setMaximum(100)
 		elif self.markSizeType.currentIndex() == 1:
 			width = self.markSizeWidth.value()
-			width_alt = img_size.width()*width
+			width_alt, ext = divmod(width*100, img_width)
+			width_alt = width_alt + round(ext/img_width)
+			self.markSizeWidth.setMaximum(100)
 			self.markSizeWidth.setValue(width_alt)
-			self.markSizeWidth.setMaximum(img_size.width())
 
 
 	# 회전 슬라이더 값
@@ -565,12 +561,13 @@ class MainWindow(QMainWindow):
 			filename = file_selector.selectedFiles()[0]
 			print(filename)
 			self.imgFrame.set_image(filename)
-			size = self.imgFrame.pixmap().size()
+			img_width = self.imgFrame.img_width
+			img_height = self.imgFrame.img_height
 			if self.markLocCustomType.currentIndex() == 0:
-				self.markLocCustomX.setMaximum(size.width())
-				self.markLocCustomY.setMaximum(size.height())
+				self.markLocCustomX.setMaximum(img_width)
+				self.markLocCustomY.setMaximum(img_height)
 			if self.markSizeType.currentIndex() == 0:
-				self.markSizeWidth.setMaximum(size.width())
+				self.markSizeWidth.setMaximum(img_width)
 			shutil.copy(filename, MAIN_IMAGE_PATH)
 			
 
@@ -648,8 +645,9 @@ class MainWindow(QMainWindow):
 		if self.logoFrame.pixmap():
 			texts, settings = self.get_setting_data()
 
+			self.setup_progress_bar(0, 10)
 			worker = LogoPreview(texts, settings)
-			worker.setup_bar.connect(self.setup_progress_bar)
+			# worker.setup_bar.connect(self.setup_progress_bar)
 			worker.progress.connect(self.update_progress_bar)
 			worker.finish.connect(self.finish_logo_preview)
 			self.pool.start(worker)
@@ -668,6 +666,9 @@ class MainWindow(QMainWindow):
 	def generate_preview(self):
 		self.update_config()
 		texts, settings = self.get_setting_data()
+		worker = Timer(3, 'test')
+		worker.finish.connect(self.finish_save_image)
+		self.pool.start(worker)
 
 	def save_img(self):
 		if self.imgFrame.pixmap():
@@ -676,8 +677,8 @@ class MainWindow(QMainWindow):
 			path = self.imgFrame.toolTip()
 			# filename = os.path.basename(path)
 			
+			self.setup_progress_bar(0, 10)
 			worker = SaveImage(settings, path)
-			worker.setup_bar.connect(self.setup_progress_bar)
 			worker.progress.connect(self.update_progress_bar)
 			worker.finish.connect(self.finish_save_image)
 			self.pool.start(worker)
@@ -686,6 +687,10 @@ class MainWindow(QMainWindow):
 
 	def finish_save_image(self):
 		self.show_result_msg(self.get_label('finish_save'))
+
+		worker = ShowImage(self.imgFrame.toolTip())
+		self.pool.start(worker)
+		
 
 	############################################################
 	######                  Sub Method                    ######
@@ -750,12 +755,7 @@ class MainWindow(QMainWindow):
 			return 2
 
 	def get_mark_size_setting(self):
-		if self.markSizeType.currentIndex() == 1:
-			img_width = self.imgFrame.pixmap().size()
-			width = int(img_width*self.markSizeWidth.value()/100)
-		else:
-			width = self.markSizeWidth.value()
-		return [width, self.markSizeType.currentIndex()]
+		return [self.markSizeWidth.value(), self.markSizeType.currentIndex()]
 
 	def get_mark_location_setting(self):
 		if self.markLoc_Center.isChecked():
@@ -803,7 +803,6 @@ class ImageFrame(QLabel):
 
 		# 이미지 들어갈 라벨
 		self.setAlignment(Qt.AlignmentFlag.AlignCenter)
-		self.setAcceptDrops(True)
 		self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
 
 
@@ -832,9 +831,15 @@ class ImageFrame(QLabel):
 	# 이미지 표시
 	def set_image(self, imgpath):
 		self.setToolTip(imgpath)
+		self.get_img_size(imgpath)
 		self.img = QPixmap(imgpath)
-		thumbnail = self.img.scaled(450, 450, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation)
+		thumbnail = self.img.scaled(self.width(), self.height(), Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation)
 		self.setPixmap(thumbnail)
+
+	def get_img_size(self, path):
+		img = Image.open(path)
+		self.img_width = img.width
+		self.img_height = img.height
 
 # 이미지 표시
 class LogoFrame(QLabel):
@@ -848,11 +853,10 @@ class LogoFrame(QLabel):
 
 		# 이미지 들어갈 라벨
 		self.setAlignment(Qt.AlignmentFlag.AlignCenter)
-		self.setAcceptDrops(True)
 
 		if os.path.exists(LOGO_PATH):
 			img = QPixmap(LOGO_PATH)
-			logo = img.scaledToWidth(self.width())
+			logo = img.scaledToWidth(self.width(), Qt.TransformationMode.SmoothTransformation)
 			self.setPixmap(logo)
 		# self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
 
@@ -886,6 +890,30 @@ class LogoFrame(QLabel):
 		self.img = QPixmap(imgpath)
 		thumbnail = self.img.scaled(100, 100, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation)
 		self.setPixmap(thumbnail)
+
+class LogoPreviewFrame(QLabel):
+	def __init__(self, parent: QWidget=None) -> None:
+		super().__init__(parent)
+		self.setFixedSize(200, 200)
+		self.setContentsMargins(0, 0, 0, 0)
+		self.setFrameShape(QFrame.Box)
+
+		# 이미지 들어갈 라벨
+		self.setAlignment(Qt.AlignmentFlag.AlignCenter)
+
+		if os.path.exists(WATERMARK_PATH):
+			img = QPixmap(WATERMARK_PATH)
+			logo = img.scaledToWidth(self.width()-10, Qt.TransformationMode.SmoothTransformation)
+			self.setPixmap(logo)
+
+
+	# 이미지 표시
+	def set_image(self, imgpath):
+		self.img = QPixmap(imgpath)
+		thumbnail = self.img.scaled(self.width()-10, self.height()-10, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation)
+		self.setPixmap(thumbnail)
+
+
 
 class HLine(QFrame):
 	def __init__(self, parent: QWidget=None) -> None:

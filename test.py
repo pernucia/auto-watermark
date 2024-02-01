@@ -39,6 +39,9 @@ class MyMainWindow(QtWidgets.QWidget):
         self.layout.addWidget(self.lbl)
         self.setLayout(self.layout)
         self.pool = QtCore.QThreadPool()
+        timer = QtCore.QTimer(self)
+        timer.timeout.connect(self.check_pool)
+        timer.start(1000)
 
     def launch_threadpool(self):
         print("launch_threadpool")
@@ -47,6 +50,9 @@ class MyMainWindow(QtWidgets.QWidget):
             worker.emitter.done.connect(self.on_worker_done)
             self.pool.start(worker)
             time.sleep(0.1) # to let print() complete lines
+    
+    def check_pool(self):
+        print(self.pool.activeThreadCount())
 
     @Slot(str)
     def on_worker_done(self, worker):

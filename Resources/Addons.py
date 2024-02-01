@@ -68,3 +68,13 @@ def keygen(key_len=8):
 	for _ in range(key_len):
 		key = key + chars[randrange(len(chars))]
 	return key
+
+def gen_watermark_name(*path):
+	fullpath = os.path.join(*path)
+	dirpath = os.path.dirname(fullpath)
+	filename = os.path.basename(fullpath)
+	print(dirpath, filename)
+	filename_alt = filename.replace('.','_watermark.')
+	alt_path = os.path.join(dirpath, filename_alt)
+	print(alt_path)
+	return alt_path

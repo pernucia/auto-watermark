@@ -4,6 +4,7 @@ from PySide6.QtCore import Signal, QObject, QTimer, QRunnable
 from time import sleep
 
 from Resources.Image import *
+from Resources.Addons import gen_watermark_name
 
 class CommSignals(QObject):
 	finish = Signal()
@@ -16,19 +17,13 @@ class CommSignals(QObject):
 	save = Signal(object, str)
 	
 class RunnerBase(QRunnable):
-	signals = CommSignals()
-	
-	def __init__(self):
+	def __init__(self) -> None:
 		super().__init__()
-		self.setAutoDelete(True)
-	
+		self.signals = CommSignals()
 	
 	@property
 	def finish(self):
 		return self.signals.finish
-	@property
-	def setup_bar(self):
-		return self.signals.setup_bar
 	@property
 	def progress(self):
 		return self.signals.progress
@@ -77,6 +72,8 @@ class Worker(RunnerBase):
 		print('start save')
 		self.__setup_progress_range(max=10)
 		generate_image(settings, path, self.progress)
+
+		
 	
 class Timer(RunnerBase):
 	def __init__(self, time, code) -> None:
@@ -95,12 +92,8 @@ class LogoPreview(RunnerBase):
 		self.texts = texts
 		self.settings = settings
 
-	def __setup_progress_range(self, min=0, max=10):
-		self.setup_bar.emit(min, max)
-
 	def run(self):
 		print('start gen logo')
-		self.__setup_progress_range(max=10)
 		generate_logo_preview(self.texts, self.settings, self.progress)
 		self.finish.emit()
 
@@ -111,11 +104,18 @@ class SaveImage(RunnerBase):
 		self.path = path
 		self.settings = settings
 
-	def __setup_progress_range(self, min=0, max=10):
-		self.setup_bar.emit(min, max)
-
 	def run(self):
 		print('start save')
-		self.__setup_progress_range(max=10)
 		generate_image(self.settings, self.path, self.progress)
+		self.finish.emit()
+		
+
+class ShowImage(RunnerBase):
+	def __init__(self, path):
+		super().__init__()
+		self.path = gen_watermark_name(path)
+
+	def run(self):
+		img = Image.open(self.path)
+		img.show()
 		self.finish.emit()

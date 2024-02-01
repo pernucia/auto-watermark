@@ -1,7 +1,7 @@
 import os, sys, traceback, shutil
 from PIL import Image, ImageDraw, ImageFont
 from PySide6.QtCore import SignalInstance
-from Resources.Addons import keygen, RESOURCE_PATH, TMP_PATH, LOGO_PATH, WATERMARK_PATH, WATERMARK_SAMPLE_PATH, MAIN_IMAGE_PATH
+from Resources.Addons import keygen, gen_watermark_name, RESOURCE_PATH, TMP_PATH, LOGO_PATH, WATERMARK_PATH, WATERMARK_SAMPLE_PATH, MAIN_IMAGE_PATH
 
 FONT = ImageFont.truetype('Resources/Font/NANUMGOTHIC.TTF', size=100)
 
@@ -43,11 +43,11 @@ def generate_logo_preview(texts:list[str], settings:dict, signal:SignalInstance=
 
     if settings["text_location"] != 0:
       if settings["text_location"] == 1:
-        startpoint = [0, logo.size[1]]
+        startpoint = [0, logo.size[1]+20]
       elif settings["text_location"] == 2:
         startpoint = [0, 0]
       elif settings["text_location"] == 3:
-        startpoint = [logo.size[0], 0]
+        startpoint = [logo.size[0]+20, 0]
       # 글씨 넣기
       textpoint = startpoint
       for line in range(line_count+1):
@@ -67,7 +67,7 @@ def generate_logo_preview(texts:list[str], settings:dict, signal:SignalInstance=
             break
         if isEndPoint:
           break
-      cord[0] = (x//10+1)*10
+      cord[0] = (x//10+3)*10
       
       signal.emit(6)
       isEndPoint = False
@@ -79,7 +79,7 @@ def generate_logo_preview(texts:list[str], settings:dict, signal:SignalInstance=
             break
         if isEndPoint:
           break
-      cord[1] = (y//10+1)*10
+      cord[1] = (y//10+3)*10
     else:
       cord = [900, 900]
 
@@ -114,6 +114,13 @@ def generate_image(settings:dict, filename:str, signal:SignalInstance=None):
     if rotation > 0:
       watermark = watermark.rotate(-rotation, expand=True)
 
+    if mark_size[1] == 0:
+      watermark.thumbnail((mark_size[0],2000))
+    elif mark_size[1] == 1:
+      watermark.thumbnail((int(main_image.width*mark_size[0]/100),2000))
+      signal.emit(4)
+    print(watermark.size)
+
     if base_location == 0:    # 중앙
       pos = [int(main_image.width/2 - watermark.width/2), int(main_image.height/2 - watermark.height/2)]
     elif base_location == 1:  # 좌상단
@@ -137,24 +144,20 @@ def generate_image(settings:dict, filename:str, signal:SignalInstance=None):
         pos = [*custom_location[:2]]
       else:
         pos = [int(main_image.width*custom_location[0]/100 - watermark.width/2), int(main_image.height*custom_location[1]/100 - watermark.height/2)]
+    print(pos)
 
-    if mark_size[1] == 0:
-      watermark.thumbnail((mark_size[0],2000))
-    elif mark_size[1] == 1:
 
-      watermark.thumbnail((int(main_image.width*mark_size[0]/100),2000))
-
-    signal.emit(5)
+    signal.emit(6)
     if mark_type == 0:
       main_image.paste(watermark, pos, watermark)
     elif mark_type == 1:
       watermark.thumbnail(main_image.size)
       main_image.paste(watermark, pos, watermark)
 
-    signal.emit(7)
+    signal.emit(8)
     tmp_path = os.path.join(TMP_PATH, f'{keygen()}.png')
     main_image.save(tmp_path)
-    shutil.copy(tmp_path, filename.replace('.','_watermark.'))
+    shutil.copy(tmp_path, gen_watermark_name(filename))
     signal.emit(10)
   except Exception as e:
     print(e)
