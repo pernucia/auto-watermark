@@ -1,5 +1,4 @@
 import os, shutil, sys, ctypes, locale
-from typing import Optional
 from PySide6.QtCore import Qt, QMimeData, Signal, QRunnable, QObject, QTimer, QThreadPool
 from PySide6.QtCore import QTimerEvent
 from PySide6.QtWidgets import QMainWindow, QApplication
