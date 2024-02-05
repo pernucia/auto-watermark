@@ -30,8 +30,9 @@
     <LabelText name="pos_bottomright">우하단(↘)</LabelText>
     <LabelText name="pos_custom">직접 입력(x,y 값을 직접 입력합니다. 워터마크의 중심 기준)</LabelText>
     <LabelText name="type_single">단일</LabelText>
+    <LabelText name="type_fit">맞추기</LabelText>
     <LabelText name="type_expand">늘리기</LabelText>
-    <LabelText name="type_checkbox">바둑판</LabelText>
+    <LabelText name="type_checkboard">바둑판</LabelText>
   </Section>
   <Section name="Button_Tooltip">
     <LabelText name="detail_open_tooltip">상세설정 보기</LabelText>
@@ -58,6 +59,7 @@
     <LabelText name="size_desc">워터마크의 크기를 결정합니다.&#10;Pixel: 워터마크의 가로 길이를 지정합니다.&#10;%: 전체 그림의 크기에 따라 가로 길이를 지정합니다.</LabelText>
     <LabelText name="orient_title">워터마크 회전</LabelText>
     <LabelText name="type_title">워터마크 유형</LabelText>
+    <LabelText name="alpha_title">워터마크 투명도</LabelText>
   </Section>
   <Section name="Table_Header">
     <LabelText name="col1">항목</LabelText>

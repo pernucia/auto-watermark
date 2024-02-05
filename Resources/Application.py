@@ -17,9 +17,10 @@ from Resources.Image import *
 palette_red = QPalette()
 palette_red.setColor(QPalette.ColorRole.Highlight, QColor(Qt.GlobalColor.red))
 
+language = ['ko_KR', 'en_US']
 
 class MainWindow(QMainWindow):
-	__version = '0.01.0000'
+	__version = '0.02.0205'
 	config = None
 	def __init__(self) -> None:
 		super().__init__()
@@ -36,17 +37,21 @@ class MainWindow(QMainWindow):
 
 	def get_config_data(self, id):
 		result = self.config.find(f".//SettingOption[@id='{id}']")
-		type = result.attrib["type"]
-		if result.attrib["value"]:
-			if type == 'str':
-				value = result.attrib["value"]
-			elif type == 'int':
-				value = int(result.attrib["value"])
-			elif type =='bool':
-				value = True if result.attrib["value"]=='True' else False
-			return value
-		else:
-			return 
+		try:
+			type = result.attrib["type"]
+			if result.attrib["value"]:
+				if type == 'str':
+					value = result.attrib["value"]
+				elif type == 'int':
+					value = int(result.attrib["value"])
+				elif type =='bool':
+					value = True if result.attrib["value"]=='True' else False
+				return value
+			else:
+				return 
+		except Exception as e:
+			print(e)
+			return
 	
 	def get_Label_data(self):
 		if not self.config:
@@ -61,7 +66,7 @@ class MainWindow(QMainWindow):
 
 		self.setWindowTitle(f'{self.get_label("window_title")} V{self.__version}')
 		# self.setWindowIcon(QIcon(resource_path('Img','icon.png')))
-		self.setFixedSize(895, 590)
+		self.setFixedSize(950, 650)
 		self.setAcceptDrops(True)
 
 		self.setFocusPolicy(Qt.FocusPolicy.ClickFocus)
@@ -99,16 +104,30 @@ class MainWindow(QMainWindow):
 		self.imgRemoveBtn.clicked.connect(self.remove_img)
 		imgBtnGroup.addWidget(self.imgRemoveBtn)
 
-		self.imgFrame = ImageFrame(self)
+		self.imgFrame = ImageFrame(self.get_label('img_input_guide'), self)
 		imgGrid.addWidget(self.imgFrame)
 
 		# 우측 상세정보
 		detailLayout = QVBoxLayout()
 		mainGrid.addLayout(detailLayout)
-		detailLayout.addWidget(QLabel(self.get_label("detail_title")))
+
+		# 상세정보 상단 타이틀 바
+		detailTitleLayout = QHBoxLayout()
+		detailTitleLayout.setContentsMargins(0,0,0,0)
+		self.detailSettingTitle = QLabel(self.get_label("detail_title"))
+		detailTitleLayout.addWidget(self.detailSettingTitle)
+		self.selectLangCombo = QComboBox()
+		self.selectLangCombo.addItems(['한국어 Kor','영어 Eng'])
+		self.selectLangCombo.currentIndexChanged.connect(self.change_language)
+		if self.get_config_data('language'):
+			index = language.index(self.get_config_data('language'))
+			self.selectLangCombo.setCurrentIndex(index)
+
+		detailTitleLayout.addWidget(self.selectLangCombo)
+		detailLayout.addLayout(detailTitleLayout)
 
 		# 로고 지정 영역
-		self.logoFrame = LogoFrame(self)
+		self.logoFrame = LogoFrame(self.get_label('logo_input_guide'), self)
 		self.logoFrame.changed.connect(self.show_logo_preview)
 		self.logoLabel = QLabel(self.get_label("logo_title"))
 		self.logoAddBtn = QPushButton(self.get_label("select_logo"))
@@ -136,18 +155,32 @@ class MainWindow(QMainWindow):
 		# 미리보기
 		self.watermarkTitle = QLabel(self.get_label('preview_title'))
 		self.watermarkPreview = LogoPreviewFrame(self.get_label('preview_img'))
+		self.buttonsWidget = QWidget()
+		buttonsLayout = QVBoxLayout()
+		buttonsLayout.setContentsMargins(0,0,0,0)
+		buttonsLayout.setSpacing(5)
+		self.buttonsWidget.setLayout(buttonsLayout)
+
 		self.toggleDetailBtn = QPushButton(self.get_label('detail_open'))
 		self.toggleDetailBtn.setToolTip(self.get_label('detail_open_tooltip'))
+		self.toggleDetailBtn.setMaximumHeight(300)
 		self.toggleDetailBtn.clicked.connect(self.toggle_detail)
+		buttonsLayout.addWidget(self.toggleDetailBtn)
 
 		self.gen_logoBtn = QPushButton(self.get_label('generate_logo'))
+		self.gen_logoBtn.setMaximumHeight(300)
 		self.gen_logoBtn.clicked.connect(self.generate_logo_preview)
+		buttonsLayout.addWidget(self.gen_logoBtn)
 
 		self.gen_previewBtn = QPushButton(self.get_label('generate_preview'))
+		self.gen_previewBtn.setMaximumHeight(300)
 		self.gen_previewBtn.clicked.connect(self.generate_preview)
+		buttonsLayout.addWidget(self.gen_previewBtn)
 
 		self.saveBtn = QPushButton(self.get_label('save'))
+		self.saveBtn.setMaximumHeight(300)
 		self.saveBtn.clicked.connect(self.save_img)
+		buttonsLayout.addWidget(self.saveBtn)
 
 		self.resultLabel = QLabel()
 		self.resultLabel.setAlignment(Qt.AlignmentFlag.AlignTop)
@@ -180,6 +213,7 @@ class MainWindow(QMainWindow):
 		self.textLocalLabel = QLabel(self.get_label('local_title'))
 		self.textLocalWidget = QWidget()
 		localLayout = QHBoxLayout(self.textLocalWidget)
+		localLayout.setContentsMargins(0,5,0,5)
 		self.textLocalDown = QRadioButton(self.get_label('text_local_down'))
 		self.textLocalLeft = QRadioButton(self.get_label('text_local_left'))
 		self.textLocalRight = QRadioButton(self.get_label('text_local_right'))
@@ -286,8 +320,6 @@ class MainWindow(QMainWindow):
 			self.markLocCustomX.setValue(self.get_config_data('mark_custom_x'))
 			self.markLocCustomY.setValue(self.get_config_data('mark_custom_y'))
 			self.markLocCustomType.setCurrentIndex(self.get_config_data('mark_custom_type'))
-		else:
-			self.markLoc_Center.setChecked(True)
 			
 		markLocLayout.addWidget(self.markLoc_TopLeft, 0, 0)
 		markLocLayout.addWidget(self.markLoc_Top, 0, 1)
@@ -322,16 +354,17 @@ class MainWindow(QMainWindow):
 
 		# 회전
 		self.textOrientTitle = QLabel(self.get_label('orient_title'))
-		self.textOrientLine = QLineEdit()
-		self.textOrientLine.setFixedWidth(50)
-		self.textOrientLine.setText('0')
+		self.textOrientLine = QSpinBox()
+		self.textOrientLine.setFixedWidth(60)
+		self.textOrientLine.setValue(0)
+		self.textOrientLine.setRange(-180, 180)
 		self.textOrientLine.textChanged.connect(self.input_orient_value)
-		# self.textOrientLine.textChanged.connect(self.show_logo_preview)
 		self.textOrientSlider = QSlider()
 		self.textOrientSlider.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
 		self.textOrientSlider.setLayoutDirection(Qt.LayoutDirection.LeftToRight)
 		self.textOrientSlider.setTickPosition(QSlider.TickPosition.TicksAbove)
-		self.textOrientSlider.setRange(0,360)
+		self.textOrientSlider.setRange(-180, 180)
+		self.textOrientSlider.setValue(0)
 		self.textOrientSlider.setTickInterval(45)
 		self.textOrientSlider.setSingleStep(15)
 		self.textOrientSlider.setPageStep(90)
@@ -340,7 +373,28 @@ class MainWindow(QMainWindow):
 
 		if self.get_config_data('orientation'):
 			self.textOrientSlider.setValue(self.get_config_data('orientation'))
-		# self.textOrientSlider.valueChanged.connect(self.show_logo_preview)
+			
+		# 투명도
+		self.markAlphaTitle = QLabel(self.get_label('alpha_title'))
+		self.markAlphaLine = QSpinBox()
+		self.markAlphaLine.setFixedWidth(60)
+		self.markAlphaLine.setRange(0, 100)
+		self.markAlphaLine.setValue(100)
+		self.markAlphaLine.textChanged.connect(self.input_alpha_value)
+		self.markAlphaSlider = QSlider()
+		self.markAlphaSlider.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+		self.markAlphaSlider.setLayoutDirection(Qt.LayoutDirection.LeftToRight)
+		self.markAlphaSlider.setTickPosition(QSlider.TickPosition.TicksAbove)
+		self.markAlphaSlider.setRange(0, 100)
+		self.markAlphaSlider.setValue(100)
+		self.markAlphaSlider.setTickInterval(10)
+		self.markAlphaSlider.setSingleStep(10)
+		self.markAlphaSlider.setPageStep(25)
+		self.markAlphaSlider.setOrientation(Qt.Orientation.Horizontal)
+		self.markAlphaSlider.valueChanged.connect(self.set_alpha_value)
+
+		if self.get_config_data('alpha'):
+			self.markAlphaSlider.setValue(self.get_config_data('alpha'))
 
 
 		# 방식(단일, 바둑판)
@@ -350,18 +404,24 @@ class MainWindow(QMainWindow):
 		typeLayout.setContentsMargins(0,1,0,10)
 		self.textTypeWidget.setLayout(typeLayout)
 
-		self.textType_Single = QRadioButton(self.get_label('type_single'))
-		self.textType_Expand = QRadioButton(self.get_label('type_expand'))
-		self.textType_Checkboard = QRadioButton(self.get_label('type_checkbox'))
+		self.markType_Single = QRadioButton(self.get_label('type_single'))
+		self.markType_Single.toggled.connect(self.select_marktype)
+		self.markType_Fit = QRadioButton(self.get_label('type_fit'))
+		self.markType_Fit.toggled.connect(self.select_marktype)
+		self.markType_Expand = QRadioButton(self.get_label('type_expand'))
+		self.markType_Expand.toggled.connect(self.select_marktype)
+		self.markType_Checkboard = QRadioButton(self.get_label('type_checkboard'))
+		self.markType_Checkboard.toggled.connect(self.select_marktype)
 
 		if self.get_config_data('type'):
-			[self.textType_Single, self.textType_Expand, self.textType_Checkboard][self.get_config_data('type')].setChecked(True)
+			[self.markType_Single, self.markType_Fit, self.markType_Expand, self.markType_Checkboard][self.get_config_data('type')].setChecked(True)
 		else:
-			self.textType_Single.setChecked(True)
+			self.markType_Single.setChecked(True)
 
-		typeLayout.addWidget(self.textType_Single)
-		typeLayout.addWidget(self.textType_Expand)
-		typeLayout.addWidget(self.textType_Checkboard)
+		typeLayout.addWidget(self.markType_Single)
+		typeLayout.addWidget(self.markType_Fit)
+		typeLayout.addWidget(self.markType_Expand)
+		typeLayout.addWidget(self.markType_Checkboard)
 
 
 		# 좌측
@@ -377,14 +437,17 @@ class MainWindow(QMainWindow):
 		logoGrid.addWidget(self.inputTextLabel, 3, 0)
 		logoGrid.addWidget(self.inputTextTable, 4, 0, 1, 4)
 		logoGrid.addWidget(HLine(), 5, 0, 1, 4)
-		logoGrid.addWidget(self.watermarkTitle, 6, 0, 1, 3)
-		logoGrid.addWidget(self.toggleDetailBtn, 6, 3)
-		logoGrid.addWidget(self.watermarkPreview, 7, 0, 4, 2)
-		logoGrid.addWidget(self.gen_logoBtn, 7, 2)
-		logoGrid.addWidget(self.gen_previewBtn, 8, 2)
-		logoGrid.addWidget(self.saveBtn, 8, 3)
-		logoGrid.addWidget(self.progressBar, 9, 2, 1, 2)
-		logoGrid.addWidget(self.resultLabel, 10, 2, 1, 2)
+		logoGrid.addWidget(self.textLocalLabel, 6, 0)
+		logoGrid.addWidget(self.textLocalWidget, 6, 1, 1, 3)
+		logoGrid.addWidget(HLine(), 7, 0, 1, 4)
+		logoGrid.addWidget(self.watermarkTitle, 8, 0, 1, 4)
+		logoGrid.addWidget(self.watermarkPreview, 9, 0, 1, 3)
+		logoGrid.addWidget(self.buttonsWidget, 9, 3)
+		# logoGrid.addWidget(self.gen_previewBtn, 10, 0)
+		# logoGrid.addWidget(self.saveBtn, 10, 1)
+		# logoGrid.addWidget(self.toggleDetailBtn, 10, 3)
+		logoGrid.addWidget(self.progressBar, 11, 0, 1, 4)
+		logoGrid.addWidget(self.resultLabel, 12, 0, 1, 4)
 		# logoGrid.addItem(QSpacerItem(20,20,QSizePolicy.Policy.Preferred,QSizePolicy.Policy.Expanding), 20, 0)
 
 		# detailGrid.addWidget(self.midLine, 0, 5, 10, 1)
@@ -395,12 +458,9 @@ class MainWindow(QMainWindow):
 		detailGrid.setSpacing(5)
 		detailGrid.addWidget(self.settingsLabel, 0, 0)
 		detailGrid.addWidget(self.settingsWidget, 1, 0, 1, 4)
-		detailGrid.addWidget(HLine(), 2, 0, 1, 4)
-		detailGrid.addWidget(self.textLocalLabel, 3, 0)
-		detailGrid.addWidget(self.textLocalWidget, 3, 1, 1, 3)
-		# detailGrid.addWidget(HLine(), 5, 0, 1, 4)
-		# detailGrid.addWidget(self.textAlignLabel, 6, 0)
-		# detailGrid.addWidget(self.textAlignWidget, 7, 0, 1, 4)
+		detailGrid.addWidget(HLine(), 4, 0, 1, 4)
+		detailGrid.addWidget(self.textTypeTitle, 5, 0)
+		detailGrid.addWidget(self.textTypeWidget, 6, 0, 1, 4)
 		detailGrid.addWidget(HLine(), 8, 0, 1, 4)
 		detailGrid.addWidget(self.markLocLabel, 9, 0)
 		detailGrid.addWidget(self.markLocWidget, 10, 0, 2, 4)
@@ -414,8 +474,9 @@ class MainWindow(QMainWindow):
 		detailGrid.addWidget(self.textOrientSlider, 17, 0, 1, 3)
 		detailGrid.addWidget(self.textOrientLine, 17, 3)
 		detailGrid.addWidget(HLine(), 18, 0, 1, 4)
-		detailGrid.addWidget(self.textTypeTitle, 19, 0)
-		detailGrid.addWidget(self.textTypeWidget, 20, 0, 1, 4)
+		detailGrid.addWidget(self.markAlphaTitle, 19, 0)
+		detailGrid.addWidget(self.markAlphaSlider, 20, 0, 1, 3)
+		detailGrid.addWidget(self.markAlphaLine, 20, 3)
 		# detailGrid.addItem(QSpacerItem(20,20,QSizePolicy.Policy.Preferred,QSizePolicy.Policy.Expanding), 21, 0)
 		
 
@@ -442,6 +503,7 @@ class MainWindow(QMainWindow):
 		detailLayout.addWidget(detailFrame)
 		
 		self.show_logo_preview()
+		self.select_marktype()
 
 		cwidget.setLayout(mainGrid)
 
@@ -450,6 +512,19 @@ class MainWindow(QMainWindow):
 	############################################################
 	######              Element Actions                   ######
 	############################################################
+
+	def change_language(self):
+		index = self.selectLangCombo.currentIndex()
+		self.update_xml('language', language[index])
+		save_xml(self.config, CONFIG_PATH)
+
+		self.get_Label_data()
+		self.update_language()
+
+	def update_language(self):
+		self.centralWidget().deleteLater()
+		self.setCentralWidget(self.cwidget_init())
+
 
 	def show_result_msg(self, msg):
 		self.resultLabel.setText(msg)
@@ -520,6 +595,7 @@ class MainWindow(QMainWindow):
 				y_value_alt = y_value_alt + round(ext/y_value)
 				self.markLocCustomY.setValue(y_value_alt)
 
+	# 워터마크 크기 타입 선택
 	def select_custom_marksize_type(self):
 		img_width = self.imgFrame.img_width
 		if self.markSizeType.currentIndex() == 0:
@@ -535,12 +611,28 @@ class MainWindow(QMainWindow):
 			self.markSizeWidth.setMaximum(100)
 			self.markSizeWidth.setValue(width_alt)
 
+	# 워터마크 유형 선택
+	def select_marktype(self):
+		if self.markType_Single.isChecked() or self.markType_Checkboard.isChecked():
+			self.markLocWidget.setEnabled(True)
+			self.markSizeWidth.setEnabled(True)
+			self.markSizeType.setEnabled(True)
+		else:
+			self.markLocWidget.setEnabled(False)
+			self.markSizeWidth.setEnabled(False)
+			self.markSizeType.setEnabled(False)
+
 
 	# 회전 슬라이더 값
 	def set_orient_value(self):
-		self.textOrientLine.setText(str(self.textOrientSlider.value()))
+		self.textOrientLine.setValue(self.textOrientSlider.value())
 	def input_orient_value(self):
-		self.textOrientSlider.setValue(int(self.textOrientLine.text()))
+		self.textOrientSlider.setValue(self.textOrientLine.value())
+	# 투명도 슬라이더 값
+	def set_alpha_value(self):
+		self.markAlphaLine.setValue(self.markAlphaSlider.value())
+	def input_alpha_value(self):
+		self.markAlphaSlider.setValue(self.markAlphaLine.value())
 
 	
 	############################################################
@@ -599,21 +691,21 @@ class MainWindow(QMainWindow):
 		self.logoFrame.clear()
 		self.logoFrame.setText(self.get_label('logo_input_guide'))
 		self.logoFrame.setToolTip('')
+		self.watermarkPreview.clear()
 		
-		self.show_logo_preview()
 
 	# 상세설정 표시 버튼
 	def toggle_detail(self):
 		if self.toggleDetailBtn.text() == self.get_label('detail_open'):
 			self.midLine.show()
 			self.rightWidget.show()
-			self.setFixedWidth(1300)
+			self.setFixedWidth(1355)
 			self.toggleDetailBtn.setText(self.get_label('detail_close'))
 			self.toggleDetailBtn.setToolTip(self.get_label('detail_close_tooltip'))
 		else:
 			self.midLine.hide()
 			self.rightWidget.hide()
-			self.setFixedWidth(895)
+			self.setFixedWidth(950)
 			self.toggleDetailBtn.setText(self.get_label('detail_open'))
 			self.toggleDetailBtn.setToolTip(self.get_label('detail_open_tooltip'))
 
@@ -634,6 +726,7 @@ class MainWindow(QMainWindow):
 		settings['mark_custom_location'] = [*self.get_mark_custom_location()]
 		settings["orientation"] = self.textOrientSlider.value()
 		settings["type"] = self.get_mark_type_setting()
+		settings["alpha"] = self.markAlphaSlider.value()
 		return texts, settings
 
 
@@ -685,7 +778,9 @@ class MainWindow(QMainWindow):
 			self.show_result_msg(self.get_label('no_main_image'))
 
 	def finish_save_image(self):
-		self.show_result_msg(self.get_label('finish_save'))
+		sleep(1)
+		if 'red' not in self.progressBar.styleSheet():
+			self.show_result_msg(self.get_label('finish_save'))
 
 		worker = ShowImage(self.imgFrame.toolTip())
 		self.pool.start(worker)
@@ -712,7 +807,17 @@ class MainWindow(QMainWindow):
 		
 	def update_xml(self, id, value):
 		element = self.config.getroot().find(f".//SettingOption[@id='{id}']")
-		element.attrib["value"] = str(value)
+		try:
+			element.attrib["value"] = str(value)
+		except AttributeError as e:
+			import xml.etree.ElementTree as ET
+			if isinstance(value, str):
+				element = ET.Element('SettingOption', {'id':id, 'type':'str', 'value':str(value)})
+			elif isinstance(value, bool):
+				element = ET.Element('SettingOption', {'id':id, 'type':'bool', 'value':str(value)})
+			elif isinstance(value, int):
+				element = ET.Element('SettingOption', {'id':id, 'type':'int', 'value':str(value)})
+			self.config.getroot().append(element)
 
 	def update_config(self):
 		texts, settings = self.get_setting_data()
@@ -732,6 +837,7 @@ class MainWindow(QMainWindow):
 		self.update_xml('mark_custom_type', settings['mark_custom_location'][2])
 		self.update_xml('orientation', settings['orientation'])
 		self.update_xml('type', settings['type'])
+		self.update_xml('alpha', settings['alpha'])
 
 		save_xml(self.config, CONFIG_PATH)
 
@@ -782,23 +888,26 @@ class MainWindow(QMainWindow):
 		return self.markLocCustomX.value(), self.markLocCustomY.value(), self.markLocCustomType.currentIndex()
 
 	def get_mark_type_setting(self):
-		if self.textType_Single.isChecked():
+		if self.markType_Single.isChecked():
 			return 0
-		elif self.textType_Expand.isChecked():
+		elif self.markType_Fit.isChecked():
 			return 1
-		elif self.textType_Checkboard.isChecked():
+		elif self.markType_Expand.isChecked():
 			return 2
+		elif self.markType_Checkboard.isChecked():
+			return 3
 
 
 
 # 이미지 표시
 class ImageFrame(QLabel):
-	def __init__(self, parent: QWidget=None) -> None:
+	def __init__(self, label, parent: QWidget=None) -> None:
 		super().__init__(parent)
-		self.setFixedWidth(450)
+		self.setFixedWidth(505)
 		self.setAcceptDrops(True)
 		self.setStyleSheet('QLabel{border: 4px dashed #aaa};')
-		self.setText(self.parent().get_label('img_input_guide'))
+		self.setText(label)
+		# self.setText(self.parent().get_label('img_input_guide'))
 
 		# 이미지 들어갈 라벨
 		self.setAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -843,12 +952,13 @@ class ImageFrame(QLabel):
 # 이미지 표시
 class LogoFrame(QLabel):
 	changed = Signal()
-	def __init__(self, parent: QWidget=None) -> None:
+	def __init__(self, label, parent: QWidget=None) -> None:
 		super().__init__(parent)
 		self.setFixedSize(100,100)
 		self.setAcceptDrops(True)
 		self.setStyleSheet('QLabel{border: 2px dashed #aaa};')
-		self.setText(self.parent().get_label('logo_input_guide'))
+		self.setText(label)
+		# self.setText(self.parent().get_label('logo_input_guide'))
 
 		# 이미지 들어갈 라벨
 		self.setAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -893,7 +1003,7 @@ class LogoFrame(QLabel):
 class LogoPreviewFrame(QLabel):
 	def __init__(self, parent: QWidget=None) -> None:
 		super().__init__(parent)
-		self.setFixedSize(200, 200)
+		self.setFixedSize(300, 160)
 		self.setContentsMargins(0, 0, 0, 0)
 		self.setFrameShape(QFrame.Box)
 
@@ -902,7 +1012,7 @@ class LogoPreviewFrame(QLabel):
 
 		if os.path.exists(WATERMARK_PATH):
 			img = QPixmap(WATERMARK_PATH)
-			logo = img.scaledToWidth(self.width()-10, Qt.TransformationMode.SmoothTransformation)
+			logo = img.scaled(self.width()-10, self.height()-10, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation)
 			self.setPixmap(logo)
 
 
