@@ -4,7 +4,8 @@ from random import randrange
 
 # PATHS
 APPDATA_PATH = os.getenv('APPDATA')
-MAIN_PATH = os.path.join(APPDATA_PATH, 'auto_watermark')
+PRJ_NAME = 'auto_watermark'
+MAIN_PATH = os.path.join(APPDATA_PATH, PRJ_NAME)
 RESOURCE_PATH = os.path.join(MAIN_PATH, 'rsc')
 TMP_PATH = os.path.join(MAIN_PATH, 'tmp')
 # FILES
@@ -24,6 +25,16 @@ def prep_env():
 		if path == MAIN_PATH:
 			if not os.path.exists(CONFIG_PATH):
 				shutil.copy(resource_path('setting.config'), CONFIG_PATH)
+			else:
+				base_data = read_xml(resource_path('setting.config'))
+				config = read_xml(CONFIG_PATH)
+				settingitems = [x.attrib['id'] for x in base_data.getroot().iter('SettingOption')]
+				for element in config.iter('SettingOption'):
+					if element.attrib['id'] in settingitems:
+						target = base_data.find(f".//SettingOption[@id='{element.attrib['id']}']")
+						target.attrib['value'] = config.find(f".//SettingOption[@id='{element.attrib['id']}']").attrib['value']
+				save_xml(base_data, CONFIG_PATH)
+				
 
 
 def resource_path(*path):

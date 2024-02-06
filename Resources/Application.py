@@ -12,8 +12,12 @@ from Resources.Runners import Timer, LogoPreview, SaveImage, ShowImage
 from Resources.Addons import read_xml, save_xml, resource_path, get_language_pack, LOGO_PATH, WATERMARK_PATH, WATERMARK_SAMPLE_PATH, CONFIG_PATH
 from Resources.Image import *
 
-
-
+class Noti:
+	def __init__(self, *, type:int=0, title:str='', desc:str='') -> None:
+		self.type:int=type
+		self.title:str=title
+		self.desc:str=desc
+		
 palette_red = QPalette()
 palette_red.setColor(QPalette.ColorRole.Highlight, QColor(Qt.GlobalColor.red))
 
@@ -21,7 +25,10 @@ language = ['ko_KR', 'en_US']
 
 class MainWindow(QMainWindow):
 	__version = '0.02.0205'
+	app_quit = Signal()
+	notification = Signal(object)
 	config = None
+	
 	def __init__(self) -> None:
 		super().__init__()
 		self.get_config()
@@ -65,13 +72,12 @@ class MainWindow(QMainWindow):
 		self.setCentralWidget(cwidget)
 
 		self.setWindowTitle(f'{self.get_label("window_title")} V{self.__version}')
-		# self.setWindowIcon(QIcon(resource_path('Img','icon.png')))
+		self.setWindowIcon(QIcon(resource_path('Resources', 'Img','icon.ico')))
 		self.setFixedSize(950, 650)
 		self.setAcceptDrops(True)
 
 		self.setFocusPolicy(Qt.FocusPolicy.ClickFocus)
 
-		# self.__center__()
 		self.show()
 
 
@@ -115,15 +121,21 @@ class MainWindow(QMainWindow):
 		detailTitleLayout = QHBoxLayout()
 		detailTitleLayout.setContentsMargins(0,0,0,0)
 		self.detailSettingTitle = QLabel(self.get_label("detail_title"))
+		self.detailSettingTitle.setMinimumWidth(310)
 		detailTitleLayout.addWidget(self.detailSettingTitle)
 		self.selectLangCombo = QComboBox()
+		self.selectLangCombo.setMinimumWidth(100)
 		self.selectLangCombo.addItems(['한국어 Kor','영어 Eng'])
 		self.selectLangCombo.currentIndexChanged.connect(self.change_language)
 		if self.get_config_data('language'):
 			index = language.index(self.get_config_data('language'))
 			self.selectLangCombo.setCurrentIndex(index)
+		
+		self.titleSpacer = QSpacerItem(20, 20, QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
+		self.titleSpacer.changeSize(0, 0, QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
 
 		detailTitleLayout.addWidget(self.selectLangCombo)
+		detailTitleLayout.addItem(self.titleSpacer)
 		detailLayout.addLayout(detailTitleLayout)
 
 		# 로고 지정 영역
@@ -174,6 +186,7 @@ class MainWindow(QMainWindow):
 
 		self.gen_previewBtn = QPushButton(self.get_label('generate_preview'))
 		self.gen_previewBtn.setMaximumHeight(300)
+		self.gen_previewBtn.setEnabled(False)
 		self.gen_previewBtn.clicked.connect(self.generate_preview)
 		buttonsLayout.addWidget(self.gen_previewBtn)
 
@@ -207,7 +220,14 @@ class MainWindow(QMainWindow):
 			self.realtimeCheck.setChecked(self.get_config_data('realtime_update'))
 		else:
 			self.realtimeCheck.setChecked(False)
+		
+		self.fontSelectCombo = QComboBox()
+		self.fontSelectCombo.addItems(self.get_fonts())
+		
 		settingLayout.addWidget(self.realtimeCheck)
+		settingLayout.addWidget(self.fontSelectCombo)
+
+
 
 		# 텍스트 위치
 		self.textLocalLabel = QLabel(self.get_label('local_title'))
@@ -525,13 +545,11 @@ class MainWindow(QMainWindow):
 		self.centralWidget().deleteLater()
 		self.setCentralWidget(self.cwidget_init())
 
-
 	def show_result_msg(self, msg):
 		self.resultLabel.setText(msg)
 		worker = Timer(5, 'RM_0')
 		worker.timer_end.connect(self.timer_cleanup)
 		self.pool.start(worker)
-
 
 	# 로딩바
 	def setup_progress_bar(self, min, max):
@@ -641,7 +659,8 @@ class MainWindow(QMainWindow):
 		
 	# 이미지 추가 버튼
 	def select_img(self):
-		file_selector = QFileDialog(self, caption="이미지 선택", directory=os.getcwd())
+		directory = self.get_config_data('folderpath') or os.getcwd()
+		file_selector = QFileDialog(self, caption="이미지 선택", directory=directory)
 		file_selector.setFileMode(QFileDialog.FileMode.ExistingFile)
 		file_selector.setViewMode(QFileDialog.ViewMode.Detail)
 		file_selector.setNameFilters({'Image File (*.png *.jpg)','Any files (*)'})
@@ -650,6 +669,8 @@ class MainWindow(QMainWindow):
 
 		if len(file_selector.selectedFiles()):
 			filename = file_selector.selectedFiles()[0]
+			filepath = os.path.basename(filename)
+			self.update_xml('folderpath', filepath)
 			print(filename)
 			self.imgFrame.set_image(filename)
 			img_width = self.imgFrame.img_width
@@ -671,7 +692,8 @@ class MainWindow(QMainWindow):
 
 	# 로고 추가 버튼
 	def select_logo(self):
-		file_selector = QFileDialog(self, caption="이미지 선택", directory=os.getcwd())
+		directory = self.get_config_data('folderpath') or os.getcwd()
+		file_selector = QFileDialog(self, caption="이미지 선택", directory=directory)
 		file_selector.setFileMode(QFileDialog.FileMode.ExistingFile)
 		file_selector.setViewMode(QFileDialog.ViewMode.Detail)
 		file_selector.setNameFilters({'Image File (*.png *.jpg)','Any files (*)'})
@@ -680,6 +702,8 @@ class MainWindow(QMainWindow):
 
 		if len(file_selector.selectedFiles()):
 			filename = file_selector.selectedFiles()[0]
+			filepath = os.path.basename(filename)
+			self.update_xml('folderpath', filepath)
 			print(filename)
 			self.logoFrame.set_image(filename)
 			shutil.copyfile(filename, LOGO_PATH, follow_symlinks=False)
@@ -702,12 +726,14 @@ class MainWindow(QMainWindow):
 			self.setFixedWidth(1355)
 			self.toggleDetailBtn.setText(self.get_label('detail_close'))
 			self.toggleDetailBtn.setToolTip(self.get_label('detail_close_tooltip'))
+			self.titleSpacer.changeSize(20, 20, QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
 		else:
 			self.midLine.hide()
 			self.rightWidget.hide()
 			self.setFixedWidth(950)
 			self.toggleDetailBtn.setText(self.get_label('detail_open'))
 			self.toggleDetailBtn.setToolTip(self.get_label('detail_open_tooltip'))
+			self.titleSpacer.changeSize(0, 0, QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
 
 	def get_setting_data(self):
 		texts = []
@@ -807,17 +833,18 @@ class MainWindow(QMainWindow):
 		
 	def update_xml(self, id, value):
 		element = self.config.getroot().find(f".//SettingOption[@id='{id}']")
-		try:
-			element.attrib["value"] = str(value)
-		except AttributeError as e:
-			import xml.etree.ElementTree as ET
-			if isinstance(value, str):
-				element = ET.Element('SettingOption', {'id':id, 'type':'str', 'value':str(value)})
-			elif isinstance(value, bool):
-				element = ET.Element('SettingOption', {'id':id, 'type':'bool', 'value':str(value)})
-			elif isinstance(value, int):
-				element = ET.Element('SettingOption', {'id':id, 'type':'int', 'value':str(value)})
-			self.config.getroot().append(element)
+		element.attrib["value"] = str(value)
+		# try:
+		# 	element.attrib["value"] = str(value)
+		# except AttributeError as e:
+		# 	import xml.etree.ElementTree as ET
+		# 	if isinstance(value, str):
+		# 		element = ET.Element('SettingOption', {'id':id, 'type':'str', 'value':str(value)})
+		# 	elif isinstance(value, bool):
+		# 		element = ET.Element('SettingOption', {'id':id, 'type':'bool', 'value':str(value)})
+		# 	elif isinstance(value, int):
+		# 		element = ET.Element('SettingOption', {'id':id, 'type':'int', 'value':str(value)})
+		# 	self.config.getroot().append(element)
 
 	def update_config(self):
 		texts, settings = self.get_setting_data()
@@ -896,8 +923,31 @@ class MainWindow(QMainWindow):
 			return 2
 		elif self.markType_Checkboard.isChecked():
 			return 3
+		
+	def get_fonts(self):
+		from tkinter import Tk, font
+		root = Tk()
+		fonts = font.families()
+		print(fonts)
+		fontnames = font.names()
+		print(fontnames[0])
+		font.nametofont(fonts[0])
+		return fonts
 
 
+	############################################################
+	######                 Slot Method                    ######
+	############################################################
+		
+	def hideEvent(self, event):
+		self.hide()
+		self.setWindowState(Qt.WindowState.WindowMinimized)
+	
+	def closeEvent(self, event):
+		self.update_config()
+		if self.pool.activeThreadCount():
+			self.app_quit.emit()
+			event.accept()
 
 # 이미지 표시
 class ImageFrame(QLabel):
