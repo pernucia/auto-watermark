@@ -2,14 +2,18 @@ import os, shutil, sys, ctypes, locale
 from PySide6.QtCore import Qt, QMimeData, Signal, QRunnable, QObject, QTimer, QThreadPool
 from PySide6.QtCore import QTimerEvent
 from PySide6.QtWidgets import QMainWindow, QApplication
-from PySide6.QtWidgets import QWidget, QHBoxLayout, QVBoxLayout, QLayout, QSizePolicy, QGridLayout, QSpacerItem
-from PySide6.QtWidgets import QFrame, QLabel, QPushButton, QFileDialog, QTableWidget, QRadioButton, QCheckBox, QLineEdit, QComboBox, QSpinBox, QSlider, QProgressBar
+from PySide6.QtWidgets import (QWidget, QHBoxLayout, QVBoxLayout, QLayout, QSizePolicy, QGridLayout, QSpacerItem,
+															 QScrollArea)
+from PySide6.QtWidgets import (QFrame, QLabel, QPushButton, QFileDialog, QTableWidget, QRadioButton, QCheckBox, 
+															 QLineEdit, QComboBox, QSpinBox, QSlider, QProgressBar, QColorDialog)
 from PySide6.QtWidgets import QTableWidgetItem, QHeaderView
-from PySide6.QtGui import QDragEnterEvent, QDropEvent, QIcon, QMouseEvent, QPixmap, QScreen, QDrag, QColor, QPalette
+
+from PySide6.QtGui import (QDragEnterEvent, QDropEvent, QIcon, QMouseEvent, QPixmap, QScreen, QDrag, 
+													 QColor, QPalette)
 from time import sleep
 
 from Resources.Runners import Timer, LogoPreview, SaveImage, ShowImage
-from Resources.Addons import read_xml, save_xml, resource_path, get_language_pack, LOGO_PATH, WATERMARK_PATH, WATERMARK_SAMPLE_PATH, CONFIG_PATH
+from Resources.Addons import read_xml, save_xml, resource_path, get_language_pack, LOGO_PATH, WATERMARK_PATH, WATERMARK_SAMPLE_PATH, CONFIG_PATH, FONTS_PATH
 from Resources.Image import *
 
 class Noti:
@@ -220,14 +224,49 @@ class MainWindow(QMainWindow):
 			self.realtimeCheck.setChecked(self.get_config_data('realtime_update'))
 		else:
 			self.realtimeCheck.setChecked(False)
+		settingLayout.addWidget(self.realtimeCheck)
+		
+		# 폰트 설정
+		self.fontSettingLabel = QLabel(self.get_label('font_title'))
+		self.fontSettingwidget = QWidget()
+		fontLayout = QGridLayout()
+		self.fontSettingwidget.setLayout(fontLayout)
 		
 		self.fontSelectCombo = QComboBox()
 		self.fontSelectCombo.addItems(self.get_fonts())
+		self.fontColorLabel = QLabel()
+		self.fontColorLabel.setAlignment(Qt.AlignmentFlag.AlignCenter)
+		color = self.get_config_data('font_color')
+		self.fontColorLabel.setText(color)
+		self.fontColorLabel.setStyleSheet('QLabel {color: ' + color + '; font: bold 12px ;}')
+		self.fontColorBtn = QPushButton(text = self.get_label('font_color'))
+		self.fontColorBtn.clicked.connect(self.select_font_color)
+
+		self.fontBorderCheck = QCheckBox()
+		self.fontBorderCheck.setText(self.get_label('font_border'))
+		if self.get_config_data('font_border'):
+			self.fontBorderCheck.setChecked(True)
+		fontBorderLayout = QHBoxLayout()
+		self.fontBorderColorLabel = QLabel()
+		self.fontBorderColorLabel.setAlignment(Qt.AlignmentFlag.AlignCenter)
+		color = self.get_config_data('font_border_color')
+		self.fontBorderColorLabel.setText(color)
+		self.fontBorderColorLabel.setStyleSheet('QLabel {color: ' + color + '; font: bold 12px ;}')
+		self.fontBorderWidth = QSpinBox()
+		self.fontBorderWidth.setValue(self.get_config_data('font_border_width'))
+		self.fontBorderColorBtn = QPushButton(self.get_label('font_border_color'))
+		self.fontBorderColorBtn.clicked.connect(self.select_font_border_color)
+		fontBorderLayout.addWidget(self.fontBorderWidth)
+		fontBorderLayout.addWidget(self.fontBorderColorLabel)
+		fontBorderLayout.addWidget(self.fontBorderColorBtn)
+
 		
-		settingLayout.addWidget(self.realtimeCheck)
-		settingLayout.addWidget(self.fontSelectCombo)
-
-
+		
+		fontLayout.addWidget(self.fontSelectCombo, 0, 0, 1, 3)
+		fontLayout.addWidget(self.fontColorLabel, 0, 3)
+		fontLayout.addWidget(self.fontColorBtn, 0, 4)
+		fontLayout.addWidget(self.fontBorderCheck, 1, 0, 1, 2)
+		fontLayout.addLayout(fontBorderLayout, 1, 2, 1, 3)
 
 		# 텍스트 위치
 		self.textLocalLabel = QLabel(self.get_label('local_title'))
@@ -478,9 +517,12 @@ class MainWindow(QMainWindow):
 		detailGrid.setSpacing(5)
 		detailGrid.addWidget(self.settingsLabel, 0, 0)
 		detailGrid.addWidget(self.settingsWidget, 1, 0, 1, 4)
-		detailGrid.addWidget(HLine(), 4, 0, 1, 4)
-		detailGrid.addWidget(self.textTypeTitle, 5, 0)
-		detailGrid.addWidget(self.textTypeWidget, 6, 0, 1, 4)
+		detailGrid.addWidget(HLine(), 2, 0, 1, 4)
+		detailGrid.addWidget(self.fontSettingLabel, 3, 0)
+		detailGrid.addWidget(self.fontSettingwidget, 4, 0, 1, 4)
+		detailGrid.addWidget(HLine(), 5, 0, 1, 4)
+		detailGrid.addWidget(self.textTypeTitle, 6, 0)
+		detailGrid.addWidget(self.textTypeWidget, 7, 0, 1, 4)
 		detailGrid.addWidget(HLine(), 8, 0, 1, 4)
 		detailGrid.addWidget(self.markLocLabel, 9, 0)
 		detailGrid.addWidget(self.markLocWidget, 10, 0, 2, 4)
@@ -506,15 +548,20 @@ class MainWindow(QMainWindow):
 		self.rightWidget = QWidget()
 		self.rightWidget.setFixedWidth(390)
 		self.rightWidget.setLayout(detailGrid)
+		self.rightWidget.setContentsMargins(5,5,5,5)
 		
-		self.rightWidget.hide()
+		self.rightScroll = QScrollArea()
+		self.rightScroll.setWidget(self.rightWidget)
+		self.rightScroll.setWidgetResizable(True)
+
+		self.rightScroll.hide()
 		self.midLine.hide()
 
 		mainLayout = QHBoxLayout()
 		mainLayout.setAlignment(Qt.AlignmentFlag.AlignLeft)
 		mainLayout.addWidget(self.leftWidget)
 		mainLayout.addWidget(self.midLine)
-		mainLayout.addWidget(self.rightWidget)
+		mainLayout.addWidget(self.rightScroll)
 
 		detailFrame = QFrame()
 		detailFrame.setFrameShape(QFrame.Box)
@@ -571,6 +618,17 @@ class MainWindow(QMainWindow):
 			self.progressBar.setEnabled(False)
 			self.progressBar.setRange(0, 100)
 			self.progressBar.setValue(0)
+
+	def change_font_color(self, color:QColor):
+		changedColor = color.name(QColor.NameFormat.HexRgb)
+		self.fontColorLabel.setText(changedColor)
+		self.fontColorLabel.setStyleSheet('QLabel {color: ' + changedColor + '; font: bold 12px ;}')
+
+	def change_font_border_color(self, color:QColor):
+		changedColor = color.name(QColor.NameFormat.HexRgb)
+		self.fontBorderColorLabel.setText(changedColor)
+		self.fontBorderColorLabel.setStyleSheet('QLabel {color: ' + changedColor + '; font: bold 12px ;}')
+
 
 	# 워터마크 위치 직접입력
 	def toggle_textpos(self):
@@ -646,6 +704,7 @@ class MainWindow(QMainWindow):
 		self.textOrientLine.setValue(self.textOrientSlider.value())
 	def input_orient_value(self):
 		self.textOrientSlider.setValue(self.textOrientLine.value())
+
 	# 투명도 슬라이더 값
 	def set_alpha_value(self):
 		self.markAlphaLine.setValue(self.markAlphaSlider.value())
@@ -722,14 +781,14 @@ class MainWindow(QMainWindow):
 	def toggle_detail(self):
 		if self.toggleDetailBtn.text() == self.get_label('detail_open'):
 			self.midLine.show()
-			self.rightWidget.show()
-			self.setFixedWidth(1355)
+			self.rightScroll.show()
+			self.setFixedWidth(1400)
 			self.toggleDetailBtn.setText(self.get_label('detail_close'))
 			self.toggleDetailBtn.setToolTip(self.get_label('detail_close_tooltip'))
 			self.titleSpacer.changeSize(20, 20, QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
 		else:
 			self.midLine.hide()
-			self.rightWidget.hide()
+			self.rightScroll.hide()
 			self.setFixedWidth(950)
 			self.toggleDetailBtn.setText(self.get_label('detail_open'))
 			self.toggleDetailBtn.setToolTip(self.get_label('detail_open_tooltip'))
@@ -752,6 +811,11 @@ class MainWindow(QMainWindow):
 		settings['mark_custom_location'] = [*self.get_mark_custom_location()]
 		settings["orientation"] = self.textOrientSlider.value()
 		settings["type"] = self.get_mark_type_setting()
+		settings["font"] = self.fontSelectCombo.currentText()
+		settings["font_color"] = self.fontColorLabel.text()
+		settings["font_border"] = self.fontBorderCheck.isChecked()
+		settings["font_border_width"] = self.fontBorderWidth.value()
+		settings["font_border_color"] = self.fontBorderColorLabel.text()
 		settings["alpha"] = self.markAlphaSlider.value()
 		return texts, settings
 
@@ -810,7 +874,22 @@ class MainWindow(QMainWindow):
 
 		worker = ShowImage(self.imgFrame.toolTip())
 		self.pool.start(worker)
+
+	def select_font_color(self):
+		color = self.fontColorLabel.text().replace('#', '')
+		colorObj = QColor().fromRgb(*[int(color[2*x:2*x+2], 16) for x in range(3)])
+		picker = QColorDialog(colorObj, self)
+		picker.colorSelected.connect(self.change_font_color)
 		
+		picker.exec()
+
+	def select_font_border_color(self):
+		color = self.fontColorLabel.text().replace('#', '')
+		colorObj = QColor().fromRgb(*[int(color[2*x:2*x+2], 16) for x in range(3)])
+		picker = QColorDialog(colorObj, self)
+		picker.colorSelected.connect(self.change_font_border_color)
+		
+		picker.exec()
 
 	############################################################
 	######                  Sub Method                    ######
@@ -864,6 +943,11 @@ class MainWindow(QMainWindow):
 		self.update_xml('mark_custom_type', settings['mark_custom_location'][2])
 		self.update_xml('orientation', settings['orientation'])
 		self.update_xml('type', settings['type'])
+		self.update_xml('font', settings['font'])
+		self.update_xml('font_color', settings['font_color'])
+		self.update_xml('font_border', settings['font_border'])
+		self.update_xml('font_border_width', settings['font_border_width'])
+		self.update_xml('font_border_color', settings['font_border_color'])
 		self.update_xml('alpha', settings['alpha'])
 
 		save_xml(self.config, CONFIG_PATH)
@@ -925,14 +1009,10 @@ class MainWindow(QMainWindow):
 			return 3
 		
 	def get_fonts(self):
-		from tkinter import Tk, font
-		root = Tk()
-		fonts = font.families()
-		print(fonts)
-		fontnames = font.names()
-		print(fontnames[0])
-		font.nametofont(fonts[0])
+		import glob
+		fonts = ['.'.join(os.path.basename(x).split('.')[:-1]) for x in glob.glob(FONTS_PATH+'/*')]
 		return fonts
+
 
 
 	############################################################
@@ -948,6 +1028,11 @@ class MainWindow(QMainWindow):
 		if self.pool.activeThreadCount():
 			self.app_quit.emit()
 			event.accept()
+
+
+############################################################
+######                 Sub Classes                    ######
+############################################################
 
 # 이미지 표시
 class ImageFrame(QLabel):

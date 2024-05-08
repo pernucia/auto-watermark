@@ -1,9 +1,10 @@
-import os, sys, traceback, shutil
+import os, sys, traceback, shutil, glob
 from PIL import Image, ImageDraw, ImageFont
 from PySide6.QtCore import SignalInstance
-from Resources.Addons import keygen, gen_watermark_name, RESOURCE_PATH, TMP_PATH, LOGO_PATH, WATERMARK_PATH, WATERMARK_SAMPLE_PATH, MAIN_IMAGE_PATH
+from PySide6.QtGui import QColor
+from Resources.Addons import keygen, gen_watermark_name, RESOURCE_PATH, TMP_PATH, LOGO_PATH, WATERMARK_PATH, WATERMARK_SAMPLE_PATH, MAIN_IMAGE_PATH, FONTS_PATH
 
-FONT = ImageFont.truetype('Resources/Font/NANUMGOTHIC.TTF', size=100)
+# FONT = ImageFont.truetype('Resources/Font/NANUMGOTHIC.TTF', size=100)
 
 def generate_mask(img:Image.Image, percent:int=100):
   orig = img.convert('RGBA')
@@ -69,9 +70,16 @@ def generate_logo_preview(texts:list[str], settings:dict, signal:SignalInstance=
         startpoint = [logo.size[0]+20, 0]
       # 글씨 넣기
       textpoint = startpoint
+      fontpath = glob.glob(os.path.join(FONTS_PATH, settings['font']+'.*'))
+      font = ImageFont.truetype(font=fontpath[0], size=100)
       for line in range(line_count+1):
         line_text = [x for x in texts if x != ' ']
-        preview.text(textpoint, line_text[line], (1,1,1),FONT)
+        if settings['font_border']:
+          preview.text(textpoint, line_text[line], QColor().fromString(settings['font_color']).getRgb(), font, 
+                       stroke_width=settings['font_border_width'], 
+                       stroke_fill=QColor().fromString(settings['font_border_color']).getRgb())
+        else:
+          preview.text(textpoint, line_text[line], QColor().fromString(settings['font_color']).getRgb(), font)
         textpoint[1] = textpoint[1]+110
 
       signal.emit(3)

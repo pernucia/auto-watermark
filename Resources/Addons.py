@@ -7,6 +7,7 @@ APPDATA_PATH = os.getenv('APPDATA')
 PRJ_NAME = 'auto_watermark'
 MAIN_PATH = os.path.join(APPDATA_PATH, PRJ_NAME)
 RESOURCE_PATH = os.path.join(MAIN_PATH, 'rsc')
+FONTS_PATH = os.path.join(MAIN_PATH, 'fonts')
 TMP_PATH = os.path.join(MAIN_PATH, 'tmp')
 # FILES
 CONFIG_PATH = os.path.join(MAIN_PATH, 'setting.config')
@@ -17,7 +18,7 @@ PREVIEW_PATH = os.path.join(RESOURCE_PATH, 'preview.png')
 MAIN_IMAGE_PATH = os.path.join(RESOURCE_PATH, 'image.png')
 
 def prep_env():
-	paths = [MAIN_PATH, RESOURCE_PATH, TMP_PATH]
+	paths = [MAIN_PATH, RESOURCE_PATH, FONTS_PATH, TMP_PATH]
 	for path in paths:
 		# print(f'make {path}')
 		if not os.path.exists(path):

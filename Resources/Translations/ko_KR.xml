@@ -15,6 +15,9 @@
     <LabelText name="generate_preview">결과 미리보기</LabelText>
     <LabelText name="save">이미지 저장</LabelText>
     <LabelText name="realtime_update">워터마크 미리보기</LabelText>
+    <LabelText name="font_border">테두리</LabelText>
+    <LabelText name="font_color">색상</LabelText>
+    <LabelText name="font_border_color">색상</LabelText>
     <LabelText name="text_local_down">하단(↓)</LabelText>
     <LabelText name="text_local_left">좌(←)</LabelText>
     <LabelText name="text_local_right">우(→)</LabelText>
@@ -52,6 +55,7 @@
     <LabelText name="preview_title">워터마크 미리보기</LabelText>
     <LabelText name="preview_img">워터마크 미리보기</LabelText>
     <LabelText name="setting_title">기타 설정</LabelText>
+    <LabelText name="font_title">기타 설정</LabelText>
     <LabelText name="local_title">텍스트 위치</LabelText>
     <LabelText name="align_title">텍스트 배열</LabelText>
     <LabelText name="position_title">워터마크 위치</LabelText>
