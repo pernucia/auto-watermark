@@ -3,7 +3,8 @@ import xml.etree.ElementTree as ET
 from random import randrange
 
 # PATHS
-APPDATA_PATH = os.getenv('APPDATA')
+# APPDATA_PATH = os.getenv('APPDATA')
+APPDATA_PATH = os.path.expanduser('~\\documents')
 PRJ_NAME = 'auto_watermark'
 MAIN_PATH = os.path.join(APPDATA_PATH, PRJ_NAME)
 RESOURCE_PATH = os.path.join(MAIN_PATH, 'rsc')

@@ -145,7 +145,7 @@ def generate_image(settings:dict, filename:str, signal:SignalInstance=None):
 
     if mark_type == 0 or mark_type == 3:
       if mark_size[1] == 0:
-        watermark.thumbnail((mark_size[0],2000))
+        watermark.thumbnail((mark_size[0], 2000))
       elif mark_size[1] == 1:
         watermark.thumbnail((int(main_image.width*mark_size[0]/100),2000))
       signal.emit(4)

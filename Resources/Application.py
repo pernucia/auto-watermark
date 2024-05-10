@@ -28,7 +28,7 @@ palette_red.setColor(QPalette.ColorRole.Highlight, QColor(Qt.GlobalColor.red))
 language = ['ko_KR', 'en_US']
 
 class MainWindow(QMainWindow):
-	__version = '0.02.0205'
+	__version = '0.03.0509'
 	app_quit = Signal()
 	notification = Signal(object)
 	config = None
@@ -115,6 +115,7 @@ class MainWindow(QMainWindow):
 		imgBtnGroup.addWidget(self.imgRemoveBtn)
 
 		self.imgFrame = ImageFrame(self.get_label('img_input_guide'), self)
+		self.imgFrame.setImage.connect(self.toggle_image_Btns)
 		imgGrid.addWidget(self.imgFrame)
 
 		# 우측 상세정보
@@ -170,7 +171,7 @@ class MainWindow(QMainWindow):
 		self.inputTextTable.cellChanged.connect(self.show_logo_preview)
 		# 미리보기
 		self.watermarkTitle = QLabel(self.get_label('preview_title'))
-		self.watermarkPreview = LogoPreviewFrame(self.get_label('preview_img'))
+		self.watermarkFrame = LogoPreviewFrame(self.get_label('preview_img'))
 		self.buttonsWidget = QWidget()
 		buttonsLayout = QVBoxLayout()
 		buttonsLayout.setContentsMargins(0,0,0,0)
@@ -191,11 +192,12 @@ class MainWindow(QMainWindow):
 		self.gen_previewBtn = QPushButton(self.get_label('generate_preview'))
 		self.gen_previewBtn.setMaximumHeight(300)
 		self.gen_previewBtn.setEnabled(False)
-		self.gen_previewBtn.clicked.connect(self.generate_preview)
+		self.gen_previewBtn.clicked.connect(self.show_preview_on_image)
 		buttonsLayout.addWidget(self.gen_previewBtn)
 
 		self.saveBtn = QPushButton(self.get_label('save'))
 		self.saveBtn.setMaximumHeight(300)
+		self.saveBtn.setEnabled(False)
 		self.saveBtn.clicked.connect(self.save_img)
 		buttonsLayout.addWidget(self.saveBtn)
 
@@ -234,6 +236,7 @@ class MainWindow(QMainWindow):
 		
 		self.fontSelectCombo = QComboBox()
 		self.fontSelectCombo.addItems(self.get_fonts())
+		self.fontAddBtn = QPushButton(self.get_label('add_font'))
 		self.fontColorLabel = QLabel()
 		self.fontColorLabel.setAlignment(Qt.AlignmentFlag.AlignCenter)
 		color = self.get_config_data('font_color')
@@ -244,8 +247,7 @@ class MainWindow(QMainWindow):
 
 		self.fontBorderCheck = QCheckBox()
 		self.fontBorderCheck.setText(self.get_label('font_border'))
-		if self.get_config_data('font_border'):
-			self.fontBorderCheck.setChecked(True)
+		self.fontBorderCheck.clicked.connect(self.toggle_font_border)
 		fontBorderLayout = QHBoxLayout()
 		self.fontBorderColorLabel = QLabel()
 		self.fontBorderColorLabel.setAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -256,6 +258,16 @@ class MainWindow(QMainWindow):
 		self.fontBorderWidth.setValue(self.get_config_data('font_border_width'))
 		self.fontBorderColorBtn = QPushButton(self.get_label('font_border_color'))
 		self.fontBorderColorBtn.clicked.connect(self.select_font_border_color)
+
+		if self.get_config_data('font_border'):
+			self.fontBorderCheck.setChecked(True)
+		else:
+			self.fontBorderWidth.setEnabled(False)
+			self.fontBorderColorLabel.setEnabled(False)
+			self.fontBorderColorBtn.setEnabled(False)
+		
+		self.fontBorderWidth.valueChanged.connect(self.show_logo_preview)
+
 		fontBorderLayout.addWidget(self.fontBorderWidth)
 		fontBorderLayout.addWidget(self.fontBorderColorLabel)
 		fontBorderLayout.addWidget(self.fontBorderColorBtn)
@@ -344,31 +356,21 @@ class MainWindow(QMainWindow):
 		self.markLocCustomY.setRange(0, 100)
 		self.markLocCustomY.setToolTip(self.get_label('pos_y'))
 		self.markLocCustomY.setEnabled(False)
-		# self.textPosCustomY.valueChanged.connect(self.show_logo_preview)
 
 		self.markLocCustomType = QComboBox()
 		self.markLocCustomType.addItems(['Pixel','%'])
 		self.markLocCustomType.currentIndexChanged.connect(self.select_custom_markloc_type)
 		self.markLocCustomType.setEnabled(False)
-		# self.textPosCustomType.currentTextChanged.connect(self.show_logo_preview)
 
 		self.markLoc_Top = QRadioButton(self.get_label('pos_top'))
-		# self.textPos_Top.toggled.connect(self.show_logo_preview)
 		self.markLoc_Bottom = QRadioButton(self.get_label('pos_bottom'))
-		# self.textPos_Bottom.toggled.connect(self.show_logo_preview)
 		self.markLoc_Left = QRadioButton(self.get_label('pos_left'))
-		# self.textPos_Left.toggled.connect(self.show_logo_preview)
 		self.markLoc_Right = QRadioButton(self.get_label('pos_right'))
-		# self.textPos_Right.toggled.connect(self.show_logo_preview)
 
 		self.markLoc_TopLeft = QRadioButton(self.get_label('pos_topleft'))
-		# self.textPos_TopLeft.toggled.connect(self.show_logo_preview)
 		self.markLoc_TopRight = QRadioButton(self.get_label('pos_topright'))
-		# self.textPos_TopRight.toggled.connect(self.show_logo_preview)
 		self.markLoc_BottomLeft = QRadioButton(self.get_label('pos_bottomleft'))
-		# self.textPos_BottomLeft.toggled.connect(self.show_logo_preview)
 		self.markLoc_BottomRight = QRadioButton(self.get_label('pos_bottomright'))
-		# self.textPos_BottomRight.toggled.connect(self.show_logo_preview)
 		
 		if self.get_config_data('mark_location'):
 			[self.markLoc_Center, self.markLoc_TopLeft, self.markLoc_Top, self.markLoc_TopRight, self.markLoc_Left, self.markLoc_Right, self.markLoc_BottomLeft, self.markLoc_Bottom, self.markLoc_BottomRight, self.markLoc_Custom][self.get_config_data('mark_location')].setChecked(True)
@@ -500,7 +502,7 @@ class MainWindow(QMainWindow):
 		logoGrid.addWidget(self.textLocalWidget, 6, 1, 1, 3)
 		logoGrid.addWidget(HLine(), 7, 0, 1, 4)
 		logoGrid.addWidget(self.watermarkTitle, 8, 0, 1, 4)
-		logoGrid.addWidget(self.watermarkPreview, 9, 0, 1, 3)
+		logoGrid.addWidget(self.watermarkFrame, 9, 0, 1, 3)
 		logoGrid.addWidget(self.buttonsWidget, 9, 3)
 		# logoGrid.addWidget(self.gen_previewBtn, 10, 0)
 		# logoGrid.addWidget(self.saveBtn, 10, 1)
@@ -569,7 +571,7 @@ class MainWindow(QMainWindow):
 		
 		detailLayout.addWidget(detailFrame)
 		
-		self.show_logo_preview()
+		self.toggle_image_Btns()
 		self.select_marktype()
 
 		cwidget.setLayout(mainGrid)
@@ -619,16 +621,37 @@ class MainWindow(QMainWindow):
 			self.progressBar.setRange(0, 100)
 			self.progressBar.setValue(0)
 
+	def toggle_image_Btns(self):
+		if self.imgFrame.img and self.watermarkFrame.img:
+			self.gen_previewBtn.setEnabled(True)
+			self.saveBtn.setEnabled(True)
+		else:
+			self.gen_previewBtn.setEnabled(False)
+			self.saveBtn.setEnabled(False)
+
+	def toggle_font_border(self):
+		if self.fontBorderCheck.isChecked():
+			self.fontBorderWidth.setEnabled(True)
+			self.fontBorderColorLabel.setEnabled(True)
+			self.fontBorderColorBtn.setEnabled(True)
+		else:
+			self.fontBorderWidth.setEnabled(False)
+			self.fontBorderColorLabel.setEnabled(False)
+			self.fontBorderColorBtn.setEnabled(False)
+
 	def change_font_color(self, color:QColor):
 		changedColor = color.name(QColor.NameFormat.HexRgb)
 		self.fontColorLabel.setText(changedColor)
 		self.fontColorLabel.setStyleSheet('QLabel {color: ' + changedColor + '; font: bold 12px ;}')
+		if self.realtimeCheck.isChecked():
+			self.show_logo_preview()
 
 	def change_font_border_color(self, color:QColor):
 		changedColor = color.name(QColor.NameFormat.HexRgb)
 		self.fontBorderColorLabel.setText(changedColor)
 		self.fontBorderColorLabel.setStyleSheet('QLabel {color: ' + changedColor + '; font: bold 12px ;}')
-
+		if self.realtimeCheck.isChecked():
+			self.show_logo_preview()
 
 	# 워터마크 위치 직접입력
 	def toggle_textpos(self):
@@ -642,8 +665,8 @@ class MainWindow(QMainWindow):
 			self.markLocCustomType.setEnabled(False)
 	
 	def select_custom_markloc_type(self):
-		img_width = self.imgFrame.img_width
-		img_height = self.imgFrame.img_height
+		img_width = self.imgFrame.imgWidth
+		img_height = self.imgFrame.imgHeight
 		if self.markLocCustomType.currentIndex() == 0:
 			self.markLocCustomX.setMaximum(img_width)
 			self.markLocCustomY.setMaximum(img_height)
@@ -673,7 +696,7 @@ class MainWindow(QMainWindow):
 
 	# 워터마크 크기 타입 선택
 	def select_custom_marksize_type(self):
-		img_width = self.imgFrame.img_width
+		img_width = self.imgFrame.imgWidth
 		if self.markSizeType.currentIndex() == 0:
 			width = self.markSizeWidth.value()
 			width_alt, ext = divmod(img_width*width, 100)
@@ -697,7 +720,6 @@ class MainWindow(QMainWindow):
 			self.markLocWidget.setEnabled(False)
 			self.markSizeWidth.setEnabled(False)
 			self.markSizeType.setEnabled(False)
-
 
 	# 회전 슬라이더 값
 	def set_orient_value(self):
@@ -732,22 +754,22 @@ class MainWindow(QMainWindow):
 			self.update_xml('folderpath', filepath)
 			print(filename)
 			self.imgFrame.set_image(filename)
-			img_width = self.imgFrame.img_width
-			img_height = self.imgFrame.img_height
+			img_width = self.imgFrame.imgWidth
+			img_height = self.imgFrame.imgHeight
 			if self.markLocCustomType.currentIndex() == 0:
 				self.markLocCustomX.setMaximum(img_width)
 				self.markLocCustomY.setMaximum(img_height)
 			if self.markSizeType.currentIndex() == 0:
 				self.markSizeWidth.setMaximum(img_width)
 			shutil.copy(filename, MAIN_IMAGE_PATH)
-			
 
+		self.toggle_image_Btns()
 
 	# 이미지 제거 버튼
 	def remove_img(self):
-		self.imgFrame.clear()
-		self.imgFrame.setText(self.get_label('img_input_guide'))
-		self.imgFrame.setToolTip('')
+		self.imgFrame.clear_img()
+		self.imgFrame.imgLabel.setText(self.get_label('img_input_guide'))
+		self.toggle_image_Btns()
 
 	# 로고 추가 버튼
 	def select_logo(self):
@@ -774,7 +796,7 @@ class MainWindow(QMainWindow):
 		self.logoFrame.clear()
 		self.logoFrame.setText(self.get_label('logo_input_guide'))
 		self.logoFrame.setToolTip('')
-		self.watermarkPreview.clear()
+		self.watermarkFrame.clear()
 		
 
 	# 상세설정 표시 버튼
@@ -782,7 +804,7 @@ class MainWindow(QMainWindow):
 		if self.toggleDetailBtn.text() == self.get_label('detail_open'):
 			self.midLine.show()
 			self.rightScroll.show()
-			self.setFixedWidth(1400)
+			self.setFixedWidth(1380)
 			self.toggleDetailBtn.setText(self.get_label('detail_close'))
 			self.toggleDetailBtn.setToolTip(self.get_label('detail_close_tooltip'))
 			self.titleSpacer.changeSize(20, 20, QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
@@ -835,28 +857,32 @@ class MainWindow(QMainWindow):
 			self.pool.start(worker)
 		else:
 			self.show_result_msg(self.get_label('no_logo'))
+		self.toggle_image_Btns()
 
 	def finish_logo_preview(self):
-		preview = QPixmap(WATERMARK_SAMPLE_PATH)
-		self.watermarkPreview.setPixmap(preview)
+		self.watermarkFrame.set_image(WATERMARK_SAMPLE_PATH)
 		self.show_result_msg(self.get_label('finish_logo_gen'))
 
 	def generate_logo_preview(self):
 		self.show_logo_preview(force=True)
 		self.update_config()
 
-	def generate_preview(self):
-		self.update_config()
-		texts, settings = self.get_setting_data()
-		worker = Timer(3, 'test')
-		worker.finish.connect(self.finish_save_image)
-		self.pool.start(worker)
+	def show_preview_on_image(self):
+		if self.markSizeWidth.value == 0:
+			self.show_result_msg(self.get_label('mark_size_zero'))
+		elif self.imgFrame.img:
+			texts, settings = self.get_setting_data()
+			self.imgFrame.show_preview(settings)
+		else:
+			self.show_result_msg(self.get_label('no_main_image'))
 
 	def save_img(self):
-		if self.imgFrame.pixmap():
+		if self.markSizeWidth.value == 0:
+			self.show_result_msg(self.get_label('mark_size_zero'))
+		elif self.imgFrame.img:
 			self.update_config()
 			texts, settings = self.get_setting_data()
-			path = self.imgFrame.toolTip()
+			path = self.imgFrame.imgpath
 			# filename = os.path.basename(path)
 			
 			self.setup_progress_bar(0, 10)
@@ -872,7 +898,7 @@ class MainWindow(QMainWindow):
 		if 'red' not in self.progressBar.styleSheet():
 			self.show_result_msg(self.get_label('finish_save'))
 
-		worker = ShowImage(self.imgFrame.toolTip())
+		worker = ShowImage(self.imgFrame.imgpath)
 		self.pool.start(worker)
 
 	def select_font_color(self):
@@ -890,6 +916,7 @@ class MainWindow(QMainWindow):
 		picker.colorSelected.connect(self.change_font_border_color)
 		
 		picker.exec()
+
 
 	############################################################
 	######                  Sub Method                    ######
@@ -913,17 +940,6 @@ class MainWindow(QMainWindow):
 	def update_xml(self, id, value):
 		element = self.config.getroot().find(f".//SettingOption[@id='{id}']")
 		element.attrib["value"] = str(value)
-		# try:
-		# 	element.attrib["value"] = str(value)
-		# except AttributeError as e:
-		# 	import xml.etree.ElementTree as ET
-		# 	if isinstance(value, str):
-		# 		element = ET.Element('SettingOption', {'id':id, 'type':'str', 'value':str(value)})
-		# 	elif isinstance(value, bool):
-		# 		element = ET.Element('SettingOption', {'id':id, 'type':'bool', 'value':str(value)})
-		# 	elif isinstance(value, int):
-		# 		element = ET.Element('SettingOption', {'id':id, 'type':'int', 'value':str(value)})
-		# 	self.config.getroot().append(element)
 
 	def update_config(self):
 		texts, settings = self.get_setting_data()
@@ -1025,9 +1041,11 @@ class MainWindow(QMainWindow):
 	
 	def closeEvent(self, event):
 		self.update_config()
-		if self.pool.activeThreadCount():
+		if self.pool.activeThreadCount() == 0:
 			self.app_quit.emit()
 			event.accept()
+		else:
+			event.ignore()
 
 
 ############################################################
@@ -1035,18 +1053,33 @@ class MainWindow(QMainWindow):
 ############################################################
 
 # 이미지 표시
-class ImageFrame(QLabel):
-	def __init__(self, label, parent: QWidget=None) -> None:
+class ImageFrame(QWidget):
+	setImage = Signal()
+
+	def __init__(self, label:str, parent: QWidget=None) -> None:
 		super().__init__(parent)
 		self.setFixedWidth(505)
 		self.setAcceptDrops(True)
-		self.setStyleSheet('QLabel{border: 4px dashed #aaa};')
-		self.setText(label)
-		# self.setText(self.parent().get_label('img_input_guide'))
+		self.setLayout(QGridLayout())
+		self.layout().setContentsMargins(5,5,5,5)
+		self.layout().setSpacing(0)
+
+		self.imgLabel = QLabel(label)
+		self.imgLabel.setStyleSheet('QLabel {border: 4px dashed #aaa};')
+		self.layout().addWidget(self.imgLabel)
 
 		# 이미지 들어갈 라벨
-		self.setAlignment(Qt.AlignmentFlag.AlignCenter)
 		self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
+		self.imgLabel.setAlignment(Qt.AlignmentFlag.AlignCenter)
+		# self.imgLabel.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
+
+		# 프리뷰 핸들
+		self.preview = self.preview_handle(self)
+		self.preview.hide()
+
+		self.img = None
+		self.imgLabel.lower()
+		self.show()
 
 
 	def dragEnterEvent(self, event: QDragEnterEvent) -> None:
@@ -1073,16 +1106,143 @@ class ImageFrame(QLabel):
 
 	# 이미지 표시
 	def set_image(self, imgpath):
-		self.setToolTip(imgpath)
+		# self.setToolTip(imgpath)
+		self.imgpath = imgpath
 		self.get_img_size(imgpath)
 		self.img = QPixmap(imgpath)
-		thumbnail = self.img.scaled(self.width(), self.height(), Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation)
-		self.setPixmap(thumbnail)
+		thumbnail = self.img.scaled(self.imgLabel.width(), self.imgLabel.height(), Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation)
+		self.imgLabel.setPixmap(thumbnail)
+		self.setImage.emit()
 
 	def get_img_size(self, path):
 		img = Image.open(path)
-		self.img_width = img.width
-		self.img_height = img.height
+		self.imgWidth = img.width
+		self.imgHeight = img.height
+
+	def clear_img(self):
+		self.img = None
+		self.imgHeight, self.imgWidth = 0, 0
+		self.imgpath = None
+		self.imgLabel.clear()
+
+	def show_preview(self, setting):
+		self.set_preview_mark(setting)
+		self.preview.show()
+
+	def set_preview_mark(self, setting):
+		self.preview.def_image(WATERMARK_PATH)
+		self.preview.set_geomatry(self.imgLabel.width(), self.imgLabel.height(), setting)
+
+		# # 크기정보
+		# mark_size, mark_size_type = setting['mark_size']
+		# if mark_size_type == 0:
+		# 	width = int(self.imgLabel.width() * mark_size / self.imgWidth)
+		# elif mark_size_type == 1:
+		# 	width = int(self.imgLabel.width() * mark_size / 100)
+		# elif mark_size_type == 2:
+		# 	width = self.imgLabel.width()
+
+		# # 위치정보
+		# base_location = setting['mark_location']
+		# custom_location = setting['mark_custom_location']
+		# if base_location == 0:    # 중앙
+		# 	pos = [int(self.imgLabel.width()/2 - self.preview.width()/2), int(self.imgLabel.height()/2 - self.preview.height()/2)]
+		# elif base_location == 1:  # 좌상단
+		# 	pos = [0, 0]
+		# elif base_location == 2:  # 상단
+		# 	pos = [int(self.imgLabel.width()/2 - self.preview.width()/2), 0]
+		# elif base_location == 3:  # 우상단
+		# 	pos = [self.imgLabel.width() - self.preview.width(), 0]
+		# elif base_location == 4:  # 좌
+		# 	pos = [0, int(self.imgLabel.height()/2 - self.preview.height()/2)]
+		# elif base_location == 5:  # 우
+		# 	pos = [self.imgLabel.width() - self.preview.width(), int(self.imgLabel.height()/2 - self.preview.height()/2)]
+		# elif base_location == 6:  # 좌하단
+		# 	pos = [0, self.imgLabel.height() - self.preview.height()]
+		# elif base_location == 7:  # 하단
+		# 	pos = [int(self.imgLabel.width()/2 - self.preview.width()/2), self.imgLabel.height() - self.preview.height()]
+		# elif base_location == 8:  # 우하단
+		# 	pos = [self.imgLabel.width() - self.preview.width(), self.imgLabel.height() - self.preview.height()]
+		# elif base_location == 9:  # 지정 위치
+		# 	if custom_location[2] == 0:
+		# 		pos = [*custom_location[:2]]
+		# 	else:
+		# 		pos = [int(self.imgLabel.width()*custom_location[0]/100 - self.preview.width()/2), int(self.imgLabel.height()*custom_location[1]/100 - self.preview.height()/2)]
+		# pos = pos + [self.preview.width(), self.preview.height()]
+		# geo = self.geometry()
+		# pos[0] = pos[0]+geo.x()
+		# pos[1] = pos[1]+geo.y()
+		# self.preview.setGeometry(*pos)
+		# self.preview.set_image()
+
+
+
+	class preview_handle(QWidget):
+		def __init__(self, parent=None) -> None:
+			super().__init__(parent=parent)
+			self.preview = QLabel(self)
+
+			if os.path.exists(WATERMARK_PATH):
+				self.def_image(WATERMARK_PATH)
+			else:
+				self.img = None
+
+		# 핸들 크기 지정
+		def set_geomatry(self, imgwidth, imgheight, setting):
+			# 크기정보
+			mark_size, mark_size_type = setting['mark_size']
+			if mark_size_type == 0:
+				preview_width = int(imgwidth * mark_size / self.parent().img.width())
+			elif mark_size_type == 1:
+				preview_width = int(imgwidth * mark_size / 100)
+			elif mark_size_type == 2:
+				preview_width = imgwidth
+
+			self.preview.setFixedWidth(preview_width)
+			ratio = imgheight / imgwidth
+			height = int(ratio*preview_width)
+			self.preview.setFixedHeight(height)
+
+			# 위치정보
+			base_location = setting['mark_location']
+			custom_location = setting['mark_custom_location']
+			if base_location == 0:    # 중앙
+				pos = [int(imgwidth/2 - self.preview.width()/2), int(imgheight/2 - self.preview.height()/2)]
+			elif base_location == 1:  # 좌상단
+				pos = [0, 0]
+			elif base_location == 2:  # 상단
+				pos = [int(imgwidth/2 - self.preview.width()/2), 0]
+			elif base_location == 3:  # 우상단
+				pos = [imgwidth - self.preview.width(), 0]
+			elif base_location == 4:  # 좌
+				pos = [0, int(imgheight/2 - self.preview.height()/2)]
+			elif base_location == 5:  # 우
+				pos = [imgwidth - self.preview.width(), int(imgheight/2 - self.preview.height()/2)]
+			elif base_location == 6:  # 좌하단
+				pos = [0, imgheight - self.preview.height()]
+			elif base_location == 7:  # 하단
+				pos = [int(imgwidth/2 - self.preview.width()/2), imgheight - self.preview.height()]
+			elif base_location == 8:  # 우하단
+				pos = [imgwidth - self.preview.width(), imgheight - self.preview.height()]
+			elif base_location == 9:  # 지정 위치
+				if custom_location[2] == 0:
+					pos = [*custom_location[:2]]
+				else:
+					pos = [int(imgwidth*custom_location[0]/100 - self.preview.width()/2), int(imgheight*custom_location[1]/100 - self.preview.height()/2)]
+			pos = pos + [self.preview.width(), self.preview.height()]
+			geo = self.geometry()
+			pos[0] = pos[0]+geo.x()
+			pos[1] = pos[1]+geo.y()
+			self.setGeometry(*pos)
+			self.set_image()
+
+		def def_image(self, imgpath):
+			self.img = QPixmap(imgpath)
+
+		# 이미지 표시
+		def set_image(self):
+			thumbnail = self.img.scaled(self.width(), self.height(), Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation)
+			self.preview.setPixmap(thumbnail)
 
 # 이미지 표시
 class LogoFrame(QLabel):
@@ -1091,7 +1251,7 @@ class LogoFrame(QLabel):
 		super().__init__(parent)
 		self.setFixedSize(100,100)
 		self.setAcceptDrops(True)
-		self.setStyleSheet('QLabel{border: 2px dashed #aaa};')
+		self.setStyleSheet('QLabel {border: 2px dashed #aaa};')
 		self.setText(label)
 		# self.setText(self.parent().get_label('logo_input_guide'))
 
@@ -1099,9 +1259,12 @@ class LogoFrame(QLabel):
 		self.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
 		if os.path.exists(LOGO_PATH):
-			img = QPixmap(LOGO_PATH)
-			logo = img.scaledToWidth(self.width(), Qt.TransformationMode.SmoothTransformation)
-			self.setPixmap(logo)
+			self.set_image(LOGO_PATH)
+			# img = QPixmap(LOGO_PATH)
+			# logo = img.scaledToWidth(self.width(), Qt.TransformationMode.SmoothTransformation)
+			# self.setPixmap(logo)
+		else:
+			self.img = None
 		# self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
 
 
@@ -1127,13 +1290,13 @@ class LogoFrame(QLabel):
 		else:
 			event.ignore()
 
-
 	# 이미지 표시
 	def set_image(self, imgpath):
 		# self.setToolTip(imgpath)
 		self.img = QPixmap(imgpath)
 		thumbnail = self.img.scaled(100, 100, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation)
 		self.setPixmap(thumbnail)
+
 
 class LogoPreviewFrame(QLabel):
 	def __init__(self, parent: QWidget=None) -> None:
@@ -1145,10 +1308,15 @@ class LogoPreviewFrame(QLabel):
 		# 이미지 들어갈 라벨
 		self.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
+		# if os.path.exists(WATERMARK_PATH):
+		# 	img = QPixmap(WATERMARK_PATH)
+		# 	logo = img.scaled(self.width()-10, self.height()-10, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation)
+		# 	self.setPixmap(logo)
+
 		if os.path.exists(WATERMARK_PATH):
-			img = QPixmap(WATERMARK_PATH)
-			logo = img.scaled(self.width()-10, self.height()-10, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation)
-			self.setPixmap(logo)
+			self.set_image(WATERMARK_PATH)
+		else:
+			self.img = None
 
 
 	# 이미지 표시
@@ -1156,8 +1324,6 @@ class LogoPreviewFrame(QLabel):
 		self.img = QPixmap(imgpath)
 		thumbnail = self.img.scaled(self.width()-10, self.height()-10, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation)
 		self.setPixmap(thumbnail)
-
-
 
 class HLine(QFrame):
 	def __init__(self, parent: QWidget=None) -> None:
