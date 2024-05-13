@@ -102,6 +102,7 @@ class MainWindow(QMainWindow):
 		mainGrid = QHBoxLayout()
 		# 좌측 이미지 그리드
 		imgGrid = QVBoxLayout()
+		imgGrid.setStretch(0,0)
 		mainGrid.addLayout(imgGrid)
 		imgBtnGroup = QHBoxLayout()
 		imgGrid.addLayout(imgBtnGroup)
@@ -1059,22 +1060,23 @@ class ImageFrame(QWidget):
 	def __init__(self, label:str, parent: QWidget=None) -> None:
 		super().__init__(parent)
 		self.setFixedWidth(505)
+		self.setMinimumHeight(600)
 		self.setAcceptDrops(True)
-		self.setLayout(QGridLayout())
-		self.layout().setContentsMargins(5,5,5,5)
-		self.layout().setSpacing(0)
+		self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Maximum)
+		# self.setLayout(QLayout())
+		# self.layout().setSpacing(0)
 
-		self.imgLabel = QLabel(label)
+		self.imgLabel = QLabel(label, self)
 		self.imgLabel.setStyleSheet('QLabel {border: 4px dashed #aaa};')
-		self.layout().addWidget(self.imgLabel)
+		self.imgLabel.setGeometry(self.x(), self.y(), self.width(), self.height())
+		# self.layout().addWidget(self.imgLabel)
 
 		# 이미지 들어갈 라벨
-		self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
 		self.imgLabel.setAlignment(Qt.AlignmentFlag.AlignCenter)
 		# self.imgLabel.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
 
 		# 프리뷰 핸들
-		self.preview = self.preview_handle(self)
+		self.preview = preview_handle(self)
 		self.preview.hide()
 
 		self.img = None
@@ -1111,7 +1113,13 @@ class ImageFrame(QWidget):
 		self.get_img_size(imgpath)
 		self.img = QPixmap(imgpath)
 		thumbnail = self.img.scaled(self.imgLabel.width(), self.imgLabel.height(), Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation)
+		xdelta = (self.width()-thumbnail.width())/2
+		ydelta = (self.height()-thumbnail.height())/2
+		pos = [self.imgLabel.x()+xdelta, self.imgLabel.y()+ydelta, thumbnail.width(), thumbnail.height()]
+		self.imgLabel.setGeometry(*pos)
+		self.imgLabel.setStyleSheet('')
 		self.imgLabel.setPixmap(thumbnail)
+
 		self.setImage.emit()
 
 	def get_img_size(self, path):
@@ -1124,6 +1132,8 @@ class ImageFrame(QWidget):
 		self.imgHeight, self.imgWidth = 0, 0
 		self.imgpath = None
 		self.imgLabel.clear()
+		self.imgLabel.setGeometry(self.geometry())
+		self.imgLabel.setStyleSheet('QLabel {border: 4px dashed #aaa};')
 
 	def show_preview(self, setting):
 		self.set_preview_mark(setting)
@@ -1131,7 +1141,7 @@ class ImageFrame(QWidget):
 
 	def set_preview_mark(self, setting):
 		self.preview.def_image(WATERMARK_PATH)
-		self.preview.set_geomatry(self.imgLabel.width(), self.imgLabel.height(), setting)
+		self.preview.set_geometry(self.imgLabel.width(), self.imgLabel.height(), setting)
 
 		# # 크기정보
 		# mark_size, mark_size_type = setting['mark_size']
@@ -1177,72 +1187,72 @@ class ImageFrame(QWidget):
 
 
 
-	class preview_handle(QWidget):
-		def __init__(self, parent=None) -> None:
-			super().__init__(parent=parent)
-			self.preview = QLabel(self)
+class preview_handle(QWidget):
+	def __init__(self, parent=None) -> None:
+		super().__init__(parent=parent)
+		self.preview = QLabel(self)
 
-			if os.path.exists(WATERMARK_PATH):
-				self.def_image(WATERMARK_PATH)
+		if os.path.exists(WATERMARK_PATH):
+			self.def_image(WATERMARK_PATH)
+		else:
+			self.img = None
+
+	# 핸들 크기 지정
+	def set_geometry(self, imgwidth, imgheight, setting):
+		# 크기정보
+		mark_size, mark_size_type = setting['mark_size']
+		if mark_size_type == 0:
+			preview_width = int(imgwidth * mark_size / self.parent().img.width())
+		elif mark_size_type == 1:
+			preview_width = int(imgwidth * mark_size / 100)
+		elif mark_size_type == 2:
+			preview_width = imgwidth
+
+		self.preview.setFixedWidth(preview_width)
+		ratio = imgheight / imgwidth
+		height = int(ratio*preview_width)
+		self.preview.setFixedHeight(height)
+
+		# 위치정보
+		base_location = setting['mark_location']
+		custom_location = setting['mark_custom_location']
+		if base_location == 0:    # 중앙
+			pos = [int(imgwidth/2 - self.preview.width()/2), int(imgheight/2 - self.preview.height()/2)]
+		elif base_location == 1:  # 좌상단
+			pos = [0, 0]
+		elif base_location == 2:  # 상단
+			pos = [int(imgwidth/2 - self.preview.width()/2), 0]
+		elif base_location == 3:  # 우상단
+			pos = [imgwidth - self.preview.width(), 0]
+		elif base_location == 4:  # 좌
+			pos = [0, int(imgheight/2 - self.preview.height()/2)]
+		elif base_location == 5:  # 우
+			pos = [imgwidth - self.preview.width(), int(imgheight/2 - self.preview.height()/2)]
+		elif base_location == 6:  # 좌하단
+			pos = [0, imgheight - self.preview.height()]
+		elif base_location == 7:  # 하단
+			pos = [int(imgwidth/2 - self.preview.width()/2), imgheight - self.preview.height()]
+		elif base_location == 8:  # 우하단
+			pos = [imgwidth - self.preview.width(), imgheight - self.preview.height()]
+		elif base_location == 9:  # 지정 위치
+			if custom_location[2] == 0:
+				pos = [*custom_location[:2]]
 			else:
-				self.img = None
+				pos = [int(imgwidth*custom_location[0]/100 - self.preview.width()/2), int(imgheight*custom_location[1]/100 - self.preview.height()/2)]
+		pos = pos + [self.preview.width(), self.preview.height()]
+		geo = self.parent().geometry()
+		pos[0] = pos[0]+geo.x()
+		pos[1] = pos[1]+geo.y()
+		self.setGeometry(*pos)
+		self.set_image()
 
-		# 핸들 크기 지정
-		def set_geomatry(self, imgwidth, imgheight, setting):
-			# 크기정보
-			mark_size, mark_size_type = setting['mark_size']
-			if mark_size_type == 0:
-				preview_width = int(imgwidth * mark_size / self.parent().img.width())
-			elif mark_size_type == 1:
-				preview_width = int(imgwidth * mark_size / 100)
-			elif mark_size_type == 2:
-				preview_width = imgwidth
+	def def_image(self, imgpath):
+		self.img = QPixmap(imgpath)
 
-			self.preview.setFixedWidth(preview_width)
-			ratio = imgheight / imgwidth
-			height = int(ratio*preview_width)
-			self.preview.setFixedHeight(height)
-
-			# 위치정보
-			base_location = setting['mark_location']
-			custom_location = setting['mark_custom_location']
-			if base_location == 0:    # 중앙
-				pos = [int(imgwidth/2 - self.preview.width()/2), int(imgheight/2 - self.preview.height()/2)]
-			elif base_location == 1:  # 좌상단
-				pos = [0, 0]
-			elif base_location == 2:  # 상단
-				pos = [int(imgwidth/2 - self.preview.width()/2), 0]
-			elif base_location == 3:  # 우상단
-				pos = [imgwidth - self.preview.width(), 0]
-			elif base_location == 4:  # 좌
-				pos = [0, int(imgheight/2 - self.preview.height()/2)]
-			elif base_location == 5:  # 우
-				pos = [imgwidth - self.preview.width(), int(imgheight/2 - self.preview.height()/2)]
-			elif base_location == 6:  # 좌하단
-				pos = [0, imgheight - self.preview.height()]
-			elif base_location == 7:  # 하단
-				pos = [int(imgwidth/2 - self.preview.width()/2), imgheight - self.preview.height()]
-			elif base_location == 8:  # 우하단
-				pos = [imgwidth - self.preview.width(), imgheight - self.preview.height()]
-			elif base_location == 9:  # 지정 위치
-				if custom_location[2] == 0:
-					pos = [*custom_location[:2]]
-				else:
-					pos = [int(imgwidth*custom_location[0]/100 - self.preview.width()/2), int(imgheight*custom_location[1]/100 - self.preview.height()/2)]
-			pos = pos + [self.preview.width(), self.preview.height()]
-			geo = self.geometry()
-			pos[0] = pos[0]+geo.x()
-			pos[1] = pos[1]+geo.y()
-			self.setGeometry(*pos)
-			self.set_image()
-
-		def def_image(self, imgpath):
-			self.img = QPixmap(imgpath)
-
-		# 이미지 표시
-		def set_image(self):
-			thumbnail = self.img.scaled(self.width(), self.height(), Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation)
-			self.preview.setPixmap(thumbnail)
+	# 이미지 표시
+	def set_image(self):
+		thumbnail = self.img.scaled(self.width(), self.height(), Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation)
+		self.preview.setPixmap(thumbnail)
 
 # 이미지 표시
 class LogoFrame(QLabel):
